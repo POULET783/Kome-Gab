@@ -1,0 +1,49 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panier - Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="cart">
+  <header class="topbar">
+    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="link-btn" href="index.html">Kome-Gab</a>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index.html">Accueil</a>
+    <a href="boutique.html">Boutiques</a>
+    <a href="occasion.html">Occasion</a>
+  </nav>
+
+  <main class="page">
+    <section class="panel">
+      <h2>Produits de boutique</h2>
+      <div id="cartItems" class="cart-list"></div>
+      <p id="emptyCart" class="empty">Votre panier est vide.</p>
+    </section>
+
+    <section class="panel">
+      <h3>Réponse pré-rédigée pour commander</h3>
+      <label for="orderTemplate">Modèle de message</label>
+      <select id="orderTemplate">
+        <option value="standard">Commande standard</option>
+        <option value="livraison">Commande + livraison</option>
+        <option value="reservation">Réservation produit</option>
+      </select>
+      <p class="small">Le message sera généré automatiquement pour chaque produit au clic sur « Commander ».</p>
+      <p id="cartTotal" class="meta">Total: 0 FCFA</p>
+      <button id="clearCartBtn" class="warning" type="button">Vider le panier</button>
+    </section>
+  </main>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
+
+
+
+
+

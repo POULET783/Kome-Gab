@@ -1,0 +1,53 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inscription - Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="register">
+  <header class="topbar">
+    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="link-btn" href="login.html">Connexion</a>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index.html">Accueil</a>
+    <a href="occasion.html">Occasion</a>
+    <a href="login.html">Connexion</a>
+  </nav>
+
+  <main class="page">
+    <section class="panel form">
+      <h2>Inscription</h2>
+
+      <label for="name">Nom</label>
+      <input id="name" placeholder="Votre nom">
+
+      <label for="email">Email</label>
+      <input id="email" type="email" placeholder="email@exemple.com">
+
+      <label for="password">Mot de passe</label>
+      <input id="password" type="password" placeholder="Choisir un mot de passe">
+
+      <label for="whatsapp">Numéro WhatsApp (sans +)</label>
+      <input id="whatsapp" placeholder="241XXXXXXXX">
+
+      <label for="role">Type de compte</label>
+      <select id="role">
+        <option value="user">Utilisateur normal</option>
+        <option value="seller">Vendeur</option>
+      </select>
+
+      <button id="registerBtn">Créer le compte</button>
+    </section>
+  </main>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
+
+
+
+

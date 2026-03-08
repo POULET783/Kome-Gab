@@ -1,0 +1,59 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produits d'occasion - Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="occasion">
+  <header class="topbar">
+    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="link-btn" href="index.html">Kome-Gab</a>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index.html">Accueil</a>
+    <a href="dashboard.html">Dashboard vendeur</a>
+    <a href="profile.html">Profil</a>
+    <a href="register.html">Créer un compte</a>
+  </nav>
+
+  <main class="page">
+    <section class="panel form">
+      <h2>Publier un produit</h2>
+      <label for="occName">Nom du produit</label>
+      <input id="occName" placeholder="Ex: iPhone 12">
+
+      <label for="occDescription">Description</label>
+      <textarea id="occDescription" rows="3" placeholder="État, accessoires, etc."></textarea>
+
+      <label for="occPrice">Prix (FCFA)</label>
+      <input id="occPrice" type="number" min="0" placeholder="100000">
+
+      <label for="occImageFiles">Images produit</label>
+      <input id="occImageFiles" type="file" accept="image/*" multiple>
+      <p class="small">Sélectionnez plusieurs images depuis vos dossiers (max 8 images, 2 Mo/image).</p>
+      <div id="occImagePreviewList" class="preview-grid"></div>
+
+      <label for="occPhone">Numéro WhatsApp (sans +)</label>
+      <input id="occPhone" placeholder="241XXXXXXXX">
+
+      <button id="publishOccasionBtn">Publier</button>
+    </section>
+
+    <section class="panel">
+      <h3>Annonces d'occasion</h3>
+      <div id="occasionList" class="cards"></div>
+      <p id="emptyOccasion" class="empty">Aucune annonce publiée.</p>
+    </section>
+  </main>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
+
+
+
+
+

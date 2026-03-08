@@ -1,0 +1,44 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boutiques - Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="boutique">
+  <header class="topbar amazon-header">
+    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="link-btn secondary" href="cart.html">Panier (<span id="cartCount">0</span>)</a>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index.html">Accueil</a>
+    <a href="occasion.html">Occasion</a>
+    <a href="cart.html">Panier</a>
+    <a href="profile.html">Profil</a>
+    <a href="dashboard.html">Dashboard vendeur</a>
+  </nav>
+
+  <main class="page">
+    <section class="panel">
+      <h2 id="shopName">Liste des boutiques</h2>
+      <div class="filters boutique-filters">
+        <div class="amazon-search-wrap">
+          <select class="search-catalog" aria-label="Catalogues boutiques">
+            <option value="">Catalogues</option>
+            <option value="boutiques">Boutiques</option>
+            <option value="produits">Produits boutique</option>
+          </select>
+          <input id="boutiqueSearchInput" class="search-main-input" type="text" placeholder="Rechercher boutique ou produit boutique...">
+          <button id="boutiqueSearchBtn" class="search-icon-btn" type="button" aria-label="Rechercher">&#128269;</button>
+        </div>
+      </div>
+      <div id="shopProducts" class="cards"></div>
+      <p id="emptyShopProducts" class="empty">Aucun résultat.</p>
+    </section>
+  </main>
+
+  <script src="js/script.js"></script>
+</body>
+</html>

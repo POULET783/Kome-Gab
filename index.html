@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="home">
+  <header class="topbar amazon-header">
+    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <div class="top-actions">
+      <a class="link-btn secondary" href="cart.html">Panier (<span id="cartCount">0</span>)</a>
+      <a class="link-btn secondary" href="profile.html">Profil</a>
+      <a class="link-btn" href="login.html" id="authLink">Connexion</a>
+    </div>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index.html">Accueil</a>
+    <a href="occasion.html">Occasion</a>
+    <a href="boutique.html">Boutiques</a>
+    <a href="cart.html">Panier</a>
+    <a href="profile.html">Profil</a>
+    <a href="dashboard.html">Dashboard vendeur</a>
+    <a href="register.html">Créer un compte</a>
+  </nav>
+
+  <main class="page">
+    <section class="panel amazon-search-panel">
+      <h2>Marketplace Kome-Gab</h2>
+      <div class="filters">
+        <div class="amazon-search-wrap">
+          <select id="categoryFilter" aria-label="Catalogues">
+            <option value="">Catalogues</option>
+            <option value="Téléphone">Téléphone</option>
+            <option value="Ordinateur">Ordinateur</option>
+            <option value="Voiture">Voiture</option>
+            <option value="Vêtement">Vêtement</option>
+            <option value="Autre">Autre</option>
+            <option value="Occasion">Occasion</option>
+          </select>
+          <input type="text" id="searchInput" placeholder="Rechercher un produit, une marque, une catégorie">
+          <button id="searchBtn" class="search-icon-btn" type="button" aria-label="Rechercher">&#128269;</button>
+        </div>
+        <input type="number" id="maxPriceFilter" min="0" placeholder="Prix max (FCFA)">
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Produits disponibles</h3>
+      <div id="products" class="cards"></div>
+      <p id="emptyProducts" class="empty">Aucun produit pour le moment.</p>
+    </section>
+  </main>
+
+  <script src="js/script.js"></script>
+</body>
+</html>

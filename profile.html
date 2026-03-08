@@ -1,0 +1,51 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mon profil - Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="profile">
+  <header class="topbar">
+    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="link-btn" href="index.html">Accueil</a>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index.html">Accueil</a>
+    <a href="cart.html">Panier</a>
+    <a href="boutique.html">Boutiques</a>
+    <a href="dashboard.html">Dashboard vendeur</a>
+  </nav>
+
+  <main class="page">
+    <section class="panel profile-card">
+      <h2>Profil (style WhatsApp)</h2>
+
+      <div class="profile-avatar-wrap">
+        <img id="profileAvatar" class="profile-avatar" src="https://placehold.co/160x160?text=Profil" alt="Photo de profil">
+        <input id="profilePhotoFile" type="file" accept="image/*">
+      </div>
+
+      <div class="form">
+        <label for="profileNameInput">Nom d'utilisateur</label>
+        <input id="profileNameInput" placeholder="Votre nom">
+
+        <label for="profilePhoneInput">Téléphone (WhatsApp)</label>
+        <input id="profilePhoneInput" placeholder="241XXXXXXXX">
+
+        <p class="meta">Email: <span id="profileEmail">-</span></p>
+        <p class="meta">Type de compte: <span id="profileRole">-</span></p>
+
+        <button id="saveProfileBtn" type="button">Enregistrer le profil</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
+
+
+

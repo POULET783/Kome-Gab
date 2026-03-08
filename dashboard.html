@@ -1,0 +1,86 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard vendeur - Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="dashboard">
+  <header class="topbar">
+    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="link-btn" href="index.html">Kome-Gab</a>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index.html">Accueil</a>
+    <a href="boutique.html">Boutiques</a>
+    <a href="occasion.html">Occasion</a>
+  </nav>
+
+  <main class="page">
+    <section class="panel form">
+      <h2>Ma boutique</h2>
+      <label for="shopNameInput">Nom de boutique</label>
+      <input id="shopNameInput" placeholder="Ex: Tech Libreville">
+
+      <label for="shopDescriptionInput">Description</label>
+      <textarea id="shopDescriptionInput" rows="3" placeholder="Description de la boutique"></textarea>
+
+      <label for="shopLogoInput">Logo par URL</label>
+      <input id="shopLogoInput" placeholder="https://...">
+
+      <label for="shopLogoFile">Ou logo depuis vos dossiers</label>
+      <input id="shopLogoFile" type="file" accept="image/*">
+      <p class="small">Choisissez soit une URL, soit un fichier perso (le fichier est prioritaire).</p>
+      <div id="shopLogoPreview" class="preview-grid"></div>
+
+      <label for="shopExternalLinkInput">Lien site externe (optionnel)</label>
+      <input id="shopExternalLinkInput" placeholder="https://monsite.com">
+
+      <button id="saveShopBtn">Créer / Mettre à jour la boutique</button>
+    </section>
+
+    <section class="panel form">
+      <h2>Ajouter un produit</h2>
+      <label for="name">Nom</label>
+      <input id="name" placeholder="Ex: Samsung A54">
+
+      <label for="description">Description</label>
+      <textarea id="description" rows="3" placeholder="Détails du produit"></textarea>
+
+      <label for="price">Prix (FCFA)</label>
+      <input id="price" type="number" min="0" placeholder="150000">
+
+      <label for="imageFiles">Images produit</label>
+      <input id="imageFiles" type="file" accept="image/*" multiple>
+      <p class="small">Sélectionnez plusieurs images depuis vos dossiers (max 8 images, 2 Mo/image).</p>
+      <div id="imagePreviewList" class="preview-grid"></div>
+
+      <label for="category">Catégorie</label>
+      <select id="category">
+        <option value="Téléphone">Téléphone</option>
+        <option value="Ordinateur">Ordinateur</option>
+        <option value="Voiture">Voiture</option>
+        <option value="Vêtement">Vêtement</option>
+        <option value="Autre">Autre</option>
+      </select>
+
+      <button id="addProductBtn">Ajouter</button>
+    </section>
+
+    <section class="panel">
+      <h3>Mes produits</h3>
+      <div id="productList" class="cards"></div>
+      <p id="emptySellerProducts" class="empty">Vous n'avez pas encore ajouté de produit.</p>
+    </section>
+  </main>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
+
+
+
+
+

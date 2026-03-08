@@ -1,0 +1,46 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Galerie produit - Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="product-gallery">
+  <header class="topbar">
+    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="link-btn secondary" href="cart.html">Panier (<span id="cartCount">0</span>)</a>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index.html">Accueil</a>
+    <a href="occasion.html">Occasion</a>
+    <a href="boutique.html">Boutiques</a>
+    <a href="cart.html">Panier</a>
+    <a href="profile.html">Profil</a>
+  </nav>
+
+  <main class="page">
+    <section class="panel gallery-container">
+      <h2 id="galleryTitle">Produit</h2>
+      <p id="galleryMeta" class="meta"></p>
+      <img id="galleryMainImage" class="gallery-main-image" src="https://placehold.co/900x600?text=Produit" alt="Image principale du produit">
+      <div id="galleryThumbnails" class="gallery-thumbnails"></div>
+      <p id="galleryDescription" class="meta"></p>
+      <div class="row-actions gallery-actions">
+        <a id="galleryWhatsapp" class="link-btn" href="#" target="_blank" rel="noopener">WhatsApp</a>
+        <button id="galleryAddToCart" class="link-btn secondary hidden" type="button">Ajouter au panier</button>
+        <a id="gallerySource" class="link-btn secondary" href="index.html">Source</a>
+      </div>
+      <p id="galleryNotFound" class="empty hidden">Produit introuvable.</p>
+    </section>
+  </main>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
+
+
+
+
+
