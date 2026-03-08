@@ -282,6 +282,14 @@ function clearCart() {
 
 function buildOrderMessage(template, item) {
   const total = Number(item.price || 0) * Number(item.quantity || 1);
+  const imageUrl = getShareableImageUrl(item.image);
+  const productUrl = getShareableProductUrl(item);
+
+  const visualHints = [
+    imageUrl ? "Image du produit (apercu WhatsApp):" : "",
+    imageUrl,
+    productUrl ? `Fiche produit: ${productUrl}` : ""
+  ].filter(Boolean);
 
   if (template === "livraison") {
     return [
@@ -289,9 +297,12 @@ function buildOrderMessage(template, item) {
       `Je souhaite commander: ${item.name}.`,
       `QuantitÃ©: ${item.quantity}.`,
       `Montant estimÃ©: ${formatPrice(total)}.`,
+      ...visualHints,
       "Pouvez-vous confirmer la disponibilitÃ©, le mode de livraison et le dÃ©lai ?",
       "Merci."
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
   if (template === "reservation") {
@@ -300,9 +311,12 @@ function buildOrderMessage(template, item) {
       `Je souhaite rÃ©server le produit suivant: ${item.name}.`,
       `QuantitÃ©: ${item.quantity}.`,
       `Budget: ${formatPrice(total)}.`,
+      ...visualHints,
       "Merci de me confirmer la rÃ©servation et les prochaines Ã©tapes.",
       "Merci."
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
   return [
@@ -310,9 +324,34 @@ function buildOrderMessage(template, item) {
     `Je souhaite commander le produit: ${item.name}.`,
     `QuantitÃ©: ${item.quantity}.`,
     `Montant estimÃ©: ${formatPrice(total)}.`,
+    ...visualHints,
     "Merci de me confirmer la disponibilitÃ©.",
     "Cordialement."
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function getShareableImageUrl(image) {
+  return toAbsoluteUrl(image);
+}
+
+function getShareableProductUrl(item) {
+  if (!item?.productId) return "";
+  const relativePath = getProductDetailUrl({ id: item.productId, isOccasion: false });
+  return toAbsoluteUrl(relativePath);
+}
+
+function toAbsoluteUrl(pathOrUrl) {
+  if (!pathOrUrl) return "";
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  if (/^data:/i.test(pathOrUrl)) return "";
+
+  try {
+    return new URL(pathOrUrl, window.location.origin).toString();
+  } catch (_) {
+    return "";
+  }
 }
 
 function bindAddToCartButtons(root) {
