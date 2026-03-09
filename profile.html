@@ -41,7 +41,54 @@
         <button id="saveProfileBtn" type="button">Enregistrer le profil</button>
       </div>
     </section>
+
+    <!-- Section Mes produits -->
+    <section class="panel">
+      <h2>Mes produits</h2>
+      <div id="myProducts" class="cards"></div>
+      <p id="emptyMyProducts" class="empty">Vous n'avez pas encore publié de produits.</p>
+    </section>
+
+    <!-- Section Boutique (pour les vendeurs) -->
+    <section class="panel" id="sellerShopSection" style="display: none;">
+      <h2>Ma boutique</h2>
+      
+      <div class="profile-avatar-wrap">
+        <img id="shopLogoDisplay" class="profile-avatar" src="https://placehold.co/160x160/ff6a00/ffffff?text=Boutique" alt="Logo de la boutique">
+      </div>
+
+      <div class="form">
+        <label for="shopNameInput">Nom de la boutique</label>
+        <input id="shopNameInput" placeholder="Nom de votre boutique">
+
+        <label for="shopDescriptionInput">Description</label>
+        <textarea id="shopDescriptionInput" placeholder="Description de votre boutique" rows="3"></textarea>
+
+        <label for="shopLogoInput">URL du logo</label>
+        <input id="shopLogoInput" placeholder="https://example.com/logo.png">
+
+        <label for="shopExternalLinkInput">Lien site externe (optionnel)</label>
+        <input id="shopExternalLinkInput" placeholder="https://example.com">
+
+        <h3>Contacts supplémentaires</h3>
+        <div id="additionalContacts">
+          <div class="contact-item">
+            <input type="email" placeholder="Email additionnel" class="additional-email">
+            <input type="tel" placeholder="WhatsApp additionnel" class="additional-whatsapp">
+            <button type="button" onclick="removeContact(this)">Supprimer</button>
+          </div>
+        </div>
+        <button type="button" onclick="addContact()">Ajouter un contact</button>
+
+        <button id="saveShopBtn" type="button">Enregistrer la boutique</button>
+      </div>
+    </section>
   </main>
+
+  <!-- Modal pour afficher les photos de profil en grand -->
+  <div id="profileImageModal" class="profile-image-modal" onclick="closeProfileImageModal()">
+    <img id="modalProfileImage" src="" alt="Photo de profil en grand">
+  </div>
 
   <script src="js/script.js"></script>
 </body>

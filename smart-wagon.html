@@ -1,0 +1,42 @@
+<!-- Panier Smart Wagon Amazon-style -->
+<div id="cartOverlay" class="cart-overlay" onclick="toggleCart()"></div>
+
+<div id="smartWagon" class="smart-wagon">
+  <div class="wagon-header">
+    <h2>Votre panier</h2>
+    <button class="wagon-close" onclick="toggleCart()">✖</button>
+  </div>
+  
+  <div class="wagon-content">
+    <ul id="cartItemsList" class="cart-items"></ul>
+    <p id="emptyCartMessage" class="empty-cart">Votre panier est vide.</p>
+  </div>
+  
+  <div class="wagon-footer">
+    <div class="wagon-total">
+      <h3>Total : <span id="cartTotal">0</span> FCFA</h3>
+    </div>
+    
+    <div class="wagon-actions">
+      <div class="template-section">
+        <label for="orderTemplate">Modèle de message</label>
+        <select id="orderTemplate">
+          <option value="standard">Commande standard</option>
+          <option value="livraison">Commande + livraison</option>
+          <option value="reservation">Réservation produit</option>
+        </select>
+      </div>
+      
+      <div class="action-buttons">
+        <button id="clearCartBtn" class="btn-secondary" onclick="clearCart()">Vider</button>
+        <button id="orderAllBtn" class="btn-primary" onclick="orderAllItems()" style="display: none;">Commander tout</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+ <!-- Bouton panier flottant -->
+<button id="cartFloatButton" class="cart-float-btn" onclick="toggleCart()" aria-label="Ouvrir le panier">
+  🛒
+  <span id="cartBadge" class="cart-badge" style="display: none;">0</span>
+</button>

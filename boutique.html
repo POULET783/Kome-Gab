@@ -9,7 +9,13 @@
 <body data-page="boutique">
   <header class="topbar amazon-header">
     <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
-    <a class="link-btn secondary" href="cart.html">Panier (<span id="cartCount">0</span>)</a>
+    <div class="top-actions">
+      <a class="profile-avatar-link" href="profile.html" id="profileAvatarLink" style="display: none;">
+        <img id="headerProfileAvatar" class="header-profile-avatar" src="" alt="Profil">
+      </a>
+      <a class="link-btn secondary" href="profile.html" id="profileTextLink">Profil</a>
+      <a class="link-btn" href="login.html" id="authLink">Connexion</a>
+    </div>
   </header>
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
@@ -38,6 +44,9 @@
       <p id="emptyShopProducts" class="empty">Aucun résultat.</p>
     </section>
   </main>
+
+  <!-- Include le panier latéral -->
+  <div id="cartSidebarContainer"></div>
 
   <script src="js/script.js"></script>
 </body>
