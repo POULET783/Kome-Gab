@@ -1065,7 +1065,10 @@ function setupDashboard() {
     document.getElementById("name").value = "";
     document.getElementById("description").value = "";
     document.getElementById("price").value = "";
-    document.getElementById("category").value = "TÃ©lÃ©phone";
+    const categoryInput = document.getElementById("category");
+    if (categoryInput) {
+      categoryInput.selectedIndex = 0;
+    }
     resetFilesPreview("imageFiles", "imagePreviewList");
   });
 
