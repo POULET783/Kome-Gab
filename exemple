@@ -1,0 +1,22 @@
+const validatePassword = (password) => {
+            const criteria = {
+                length: password.length >= 6,
+                uppercase: /[A-Z]/.test(password),
+                lowercase: /[a-z]/.test(password),
+                number: /[0-9]/.test(password)
+            };
+            
+            const updateCriteriaDisplay = (criteria) => {
+                document.getElementById('length-criteria').classList.toggle('valid', criteria.length);
+                document.querySelector('#length-criteria .criteria-icon').textContent = criteria.length ? '✓' : '○';
+                document.getElementById('uppercase-criteria').classList.toggle('valid', criteria.uppercase);
+                document.querySelector('#uppercase-criteria .criteria-icon').textContent = criteria.uppercase ? '✓' : '○';
+                document.getElementById('lowercase-criteria').classList.toggle('valid', criteria.lowercase);
+                document.querySelector('#lowercase-criteria .criteria-icon').textContent = criteria.lowercase ? '✓' : '○';
+                document.getElementById('number-criteria').classList.toggle('valid', criteria.number);
+                document.querySelector('#number-criteria .criteria-icon').textContent = criteria.number ? '✓' : '○';
+            };
+            
+            updateCriteriaDisplay(criteria);
+            return Object.values(criteria).every(Boolean);
+        };

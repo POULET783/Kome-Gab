@@ -5,17 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Inscription - Kome-Gab</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body data-page="register">
   <header class="topbar">
-    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="brand-logo" href="index-no-connexion.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
     <a class="link-btn" href="login.html">Connexion</a>
   </header>
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
-    <a href="index.html">Accueil</a>
-    <a href="occasion.html">Occasion</a>
-    <a href="login.html">Connexion</a>
+    <a href="index-no-connexion.html">Accueil</a>
+    <a href="occasion-no-connexion.html">Occasion</a>
+    <a href="boutique-no-connexion.html">Boutiques</a>
   </nav>
 
   <main class="page">
@@ -29,7 +30,32 @@
       <input id="email" type="email" placeholder="email@exemple.com">
 
       <label for="password">Mot de passe</label>
+      <div class="password-input-container">
       <input id="password" type="password" placeholder="Choisir un mot de passe">
+        <button type="button" class="password-toggle" id="passwordToggle">
+          <i class="fa-solid fa-eye"></i>
+        </button>
+      </div>
+      
+      <!-- Critères du mot de passe -->
+      <div class="password-criteria">
+        <div class="criteria-item" id="length-criteria">
+          <span class="criteria-icon">○</span>
+          <span>Au moins 6 caractères</span>
+        </div>
+        <div class="criteria-item" id="uppercase-criteria">
+          <span class="criteria-icon">○</span>
+          <span>Au moins une majuscule</span>
+        </div>
+        <div class="criteria-item" id="lowercase-criteria">
+          <span class="criteria-icon">○</span>
+          <span>Au moins une minuscule</span>
+        </div>
+        <div class="criteria-item" id="number-criteria">
+          <span class="criteria-icon">○</span>
+          <span>Au moins un chiffre</span>
+        </div>
+      </div>
 
       <label for="whatsapp">Numéro WhatsApp (sans +)</label>
       <input id="whatsapp" placeholder="241XXXXXXXX">
@@ -44,7 +70,7 @@
     </section>
   </main>
 
-  <script src="js/script.js"></script>
+  <script type="module" src="js/script.js"></script>
 </body>
 </html>
 

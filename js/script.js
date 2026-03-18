@@ -31,7 +31,7 @@ function uid(prefix) {
 }
 
 function currentUser() {
-  return read(STORAGE_KEYS.logged_user, null);
+  return read(STORAGE_KEYS.loggedUser, null);
 }
 
 function ensureMenu() {
@@ -48,7 +48,7 @@ function ensureMenu() {
 function updateAuthLink() {
   const authLink = document.getElementById("authLink");
   const profileAvatarLink = document.getElementById("profileAvatarLink");
-  const profileTextLink = document.getElementById("profileTextLink");
+  const profileTextLink = document.getElementById("profileTextLink"); // Peut être null
   const headerProfileAvatar = document.getElementById("headerProfileAvatar");
   
   const logged = currentUser();
@@ -60,7 +60,7 @@ function updateAuthLink() {
       authLink.onclick = (e) => {
         e.preventDefault();
         if (confirm("Voulez-vous vraiment vous déconnecter ?")) {
-          write(STORAGE_KEYS.logged_user, null);
+          write(STORAGE_KEYS.loggedUser, null);
           window.location.href = "index.html";
         }
       };
@@ -72,7 +72,7 @@ function updateAuthLink() {
   }
   
   // Gérer l'affichage de la photo de profil dans le header
-  if (profileAvatarLink && profileTextLink && headerProfileAvatar) {
+  if (profileAvatarLink && headerProfileAvatar) {
     if (logged) {
       // Récupérer la photo de profil ou le logo de la boutique
       let profileImage = logged.photo_profil;
@@ -85,24 +85,25 @@ function updateAuthLink() {
         }
       }
       
+      // Utiliser l'image trouvée ou un avatar par défaut si vide/placeholder
       if (profileImage && !profileImage.includes("placehold.co")) {
         headerProfileAvatar.src = profileImage;
+      } else {
+        headerProfileAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(logged.nom || "User")}&background=3b82f6&color=fff&size=64`;
+      }
+
         profileAvatarLink.style.display = "inline-flex";
-        profileTextLink.style.display = "none";
+      if (profileTextLink) profileTextLink.style.display = "none";
         
-        // Ajouter l'événement pour afficher l'image en grand
-        headerProfileAvatar.addEventListener("click", (e) => {
+      // Ajouter l'événement pour rediriger vers le profil
+      headerProfileAvatar.onclick = (e) => {
           e.preventDefault();
           // Rediriger vers le profil au lieu d'afficher l'image en grand
           window.location.href = "profile.html";
-        });
+      };
       } else {
         profileAvatarLink.style.display = "none";
-        profileTextLink.style.display = "inline-block";
-      }
-    } else {
-      profileAvatarLink.style.display = "none";
-      profileTextLink.style.display = "inline-block";
+      if (profileTextLink) profileTextLink.style.display = "inline-block";
     }
   }
 }
@@ -239,7 +240,7 @@ function mapOccasionToMarketplace(item) {
     name: item.nom || item.name || "Produit d'occasion",
     description: item.description || "",
     price: Number(item.prix ?? item.price ?? 0),
-    category: "Occasion",
+    category: item.category || item.categorie || "Autre",
     phone: item.numero_whatsapp || item.phone || "",
     image: images[0] || "",
     images,
@@ -749,7 +750,10 @@ function renderProductCard(product, opts = {}) {
           <a class="link-btn secondary" href="${galleryUrl}">Galerie</a>
           ${sourceAction}
           ${cartAction}
-          ${opts.sellerActions ? `<button class="warning" data-action="toggle-sold" data-id="${normalized.id}">${isSold ? "Remettre disponible" : "Marquer vendu"}</button>` : ""}
+          ${opts.sellerActions ? `
+            <button class="warning" data-action="toggle-sold" data-id="${normalized.id}">${isSold ? "Remettre disponible" : "Marquer vendu"}</button>
+            <button style="background-color: var(--danger, #d93025); color: white;" data-action="delete-product" data-id="${normalized.id}" data-origin="${normalized.isOccasion ? 'occasion' : 'regular'}">Supprimer le produit</button>
+          ` : ""}
         </div>
       </div>
     </article>
@@ -809,6 +813,18 @@ function setupRegister() {
       return;
     }
 
+    // Validation stricte du mot de passe avant création
+    const passwordValid = 
+      password.length >= 6 &&
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password) &&
+      /[0-9]/.test(password);
+
+    if (!passwordValid) {
+      alert("Le mot de passe doit respecter tous les critères de sécurité.");
+      return;
+    }
+
     const users = getUsers();
     if (users.some((u) => u.email === email)) {
       alert("Cet email exist déjà .");
@@ -850,12 +866,69 @@ function setupLogin() {
       return;
     }
 
-    write(STORAGE_KEYS.logged_user, user);
+    write(STORAGE_KEYS.loggedUser, user);
     if (user.type_compte === "seller") {
       window.location.href = "dashboard.html";
       return;
     }
-    window.location.href = "index.html";
+    window.location.href = "home.html";
+  });
+}
+
+function setupPasswordToggle() {
+  const toggleButton = document.getElementById("passwordToggle");
+  const passwordInput = document.getElementById("password");
+
+  if (!toggleButton || !passwordInput) {
+    return;
+  }
+
+  toggleButton.addEventListener("click", () => {
+    const icon = toggleButton.querySelector("i");
+    if (passwordInput.type === "password") {
+      passwordInput.type = "text";
+      icon.classList.remove("fa-eye");
+      icon.classList.add("fa-eye-slash");
+    } else {
+      passwordInput.type = "password";
+      icon.classList.remove("fa-eye-slash");
+      icon.classList.add("fa-eye");
+    }
+  });
+}
+
+function setupPasswordValidation() {
+  const passwordInput = document.getElementById("password");
+  // Vérifier si les éléments de critères existent (page register)
+  const lengthCriteria = document.getElementById("length-criteria");
+  
+  if (!passwordInput || !lengthCriteria) return;
+
+  const criteriaElements = {
+    length: document.getElementById("length-criteria"),
+    uppercase: document.getElementById("uppercase-criteria"),
+    lowercase: document.getElementById("lowercase-criteria"),
+    number: document.getElementById("number-criteria")
+  };
+
+  passwordInput.addEventListener("input", () => {
+    const password = passwordInput.value;
+    const checks = {
+      length: password.length >= 6,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password)
+    };
+
+    for (const key in criteriaElements) {
+      const el = criteriaElements[key];
+      if (el) {
+        const isValid = checks[key];
+        el.classList.toggle("valid", isValid);
+        const icon = el.querySelector(".criteria-icon");
+        if (icon) icon.textContent = isValid ? "✓" : "○";
+      }
+    }
   });
 }
 
@@ -873,7 +946,11 @@ function setupHome() {
 
     const products = getMarketplaceProducts().filter((p) => {
       const byText = !q || p.name.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
-      const byCategory = !category || p.category === category;
+      let byCategory = !category || p.category === category;
+      // Cas spécial pour la catégorie "Occasion" sur la page d'accueil
+      if (category === "Occasion") {
+        byCategory = p.isOccasion;
+      }
       const byPrice = !maxPrice || Number(p.price) <= maxPrice;
       return byText && byCategory && byPrice;
     });
@@ -952,6 +1029,17 @@ function setupDashboard() {
         if (!target) return;
         target.status = target.status === "sold" ? "available" : "sold";
         saveProducts(all);
+        renderSellerProducts();
+      });
+    });
+
+    list.querySelectorAll("button[data-action='delete-product']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!confirm("Voulez-vous vraiment supprimer ce produit ?")) return;
+        const id = btn.getAttribute("data-id");
+        const all = getProducts();
+        const filtered = all.filter((p) => p.id !== id);
+        saveProducts(filtered);
         renderSellerProducts();
       });
     });
@@ -1172,25 +1260,65 @@ function setupBoutiquePage() {
 
   render();
 }
-function setupOccasion() {
-  const publishBtn = document.getElementById("publishOccasionBtn");
-  const list = document.getElementById("occasionList");
-  if (!publishBtn || !list) return;
+
+function setupOccasionPage() {
+  const page = document.body.dataset.page;
+  if (page !== 'occasion' && page !== 'occasion-no-connexion') {
+    return;
+  }
+
+  const container = document.getElementById("occasionList");
+  if (!container) return;
 
   const empty = document.getElementById("emptyOccasion");
-
-  setupFilesPreview("occImageFiles", "occImagePreviewList");
+  const searchInput = document.getElementById("occasionSearchInput");
+  const searchBtn = document.getElementById("occasionSearchBtn");
+  const categoryFilter = document.getElementById("categoryFilter");
+  const maxPriceFilter = document.getElementById("maxPriceFilter");
 
   function render() {
-    const items = getOccasionProducts().map(mapOccasionToMarketplace);
-    list.innerHTML = items.map((item) => renderProductCard(item)).join("");
-    empty.style.display = items.length ? "none" : "block";
+    const q = (searchInput?.value || "").trim().toLowerCase();
+    const category = categoryFilter?.value || "";
+    const maxPrice = Number(maxPriceFilter?.value || 0);
+
+    const products = getOccasionProducts()
+      .map(mapOccasionToMarketplace)
+      .filter((p) => {
+        const byText = !q || p.name.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
+        const byCategory = !category || p.category === category;
+        const byPrice = !maxPrice || Number(p.price) <= maxPrice;
+        return byText && byCategory && byPrice;
+      });
+
+    container.innerHTML = products.map((p) => renderProductCard(p)).join("");
+    if (empty) empty.style.display = products.length ? "none" : "block";
   }
+
+  searchBtn?.addEventListener("click", render);
+  searchInput?.addEventListener("input", render);
+  categoryFilter?.addEventListener("change", render);
+  maxPriceFilter?.addEventListener("input", render);
+  render();
+}
+
+function setupPublication() {
+  const publishBtn = document.getElementById("publishOccasionBtn");
+  if (!publishBtn) return;
+
+  const user = currentUser();
+  if (!user) {
+    alert("Vous devez être connecté pour publier une annonce.");
+    window.location.href = 'login.html';
+    return;
+  }
+
+  setupFilesPreview("occImageFiles", "occImagePreviewList");
 
   publishBtn.addEventListener("click", async () => {
     const nom = document.getElementById("occName").value.trim();
     const description = document.getElementById("occDescription").value.trim();
     const prix = Number(document.getElementById("occPrice").value || 0);
+    const category = document.getElementById("occCategory").value;
     const numero_whatsapp = normalizePhone(document.getElementById("occPhone").value);
 
     if (!nom || !prix || !numero_whatsapp) {
@@ -1205,40 +1333,57 @@ function setupOccasion() {
       alert(error.message);
       return;
     }
-
-    if (!images.length) {
-      alert("Veuillez sÃ©lectionner au moins une image depuis vos dossiers.");
+    if (images.length === 0) {
+      alert("Veuillez ajouter au moins une image.");
       return;
     }
 
-    const items = getOccasionProducts();
-    items.unshift({
-      id: uid("occ"),
+    const all = getOccasionProducts();
+    all.push({
+      id: uid("occasion"),
       nom,
       description,
       prix,
+      category,
       image: images[0],
       images,
       numero_whatsapp,
-      statut: "available",
-      date_publication: new Date().toISOString()
+      vendeur_id: user.id,
+      date_publication: new Date().toISOString(),
+      status: "available"
     });
 
-    saveOccasionProducts(items);
-    render();
+    saveOccasionProducts(all);
+    alert("Annonce publiée avec succès.");
 
     // Vider le formulaire
     document.getElementById("occName").value = "";
     document.getElementById("occDescription").value = "";
     document.getElementById("occPrice").value = "";
+    document.getElementById("occCategory").value = "Téléphone";
     document.getElementById("occPhone").value = "";
     resetFilesPreview("occImageFiles", "occImagePreviewList");
   });
-
-  render();
 }
 
-function setupProductGallery() {
+function setupProductDetailPage() {
+  const page = document.body.dataset.page;
+  if (page !== 'product') return;
+
+  function findProduct() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    const origin = params.get("origin");
+    if (!id) return null;
+
+    const isOccasion = origin === "occasion";
+    const products = isOccasion ? getOccasionProducts() : getProducts();
+    const product = products.find(p => p.id === id);
+
+    if (!product) return null;
+    return isOccasion ? mapOccasionToMarketplace(product) : mapRegularProduct(product);
+  }
+
   const title = document.getElementById("galleryTitle");
   const meta = document.getElementById("galleryMeta");
   const description = document.getElementById("galleryDescription");
@@ -1249,101 +1394,49 @@ function setupProductGallery() {
   const addToCartBtn = document.getElementById("galleryAddToCart");
   const notFound = document.getElementById("galleryNotFound");
 
-  if (!title || !meta || !description || !mainImage || !thumbnails || !whatsapp || !source || !notFound) {
-    return;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get("id");
-  const origin = params.get("origin");
-
-  function findProduct() {
-    if (!id) return null;
-
-    if (origin === "occasion") {
-      const fromOccasion = getOccasionProducts().find((item) => item.id === id);
-      if (fromOccasion) return mapOccasionToMarketplace(fromOccasion);
-    }
-
-    if (origin === "regular") {
-      const fromRegular = getProducts().find((item) => item.id === id);
-      if (fromRegular) return mapRegularProduct(fromRegular);
-    }
-
-    const regularFallback = getProducts().find((item) => item.id === id);
-    if (regularFallback) return mapRegularProduct(regularFallback);
-
-    const occasionFallback = getOccasionProducts().find((item) => item.id === id);
-    if (occasionFallback) return mapOccasionToMarketplace(occasionFallback);
-
-    return null;
-  }
+  if (!title || !mainImage || !notFound) return;
 
   const product = findProduct();
 
   if (!product) {
-    title.textContent = "Produit introuvable";
-    meta.textContent = "";
-    description.textContent = "";
-    mainImage.classList.add("hidden");
-    thumbnails.classList.add("hidden");
-    whatsapp.classList.add("hidden");
-    source.classList.add("hidden");
-    if (addToCartBtn) addToCartBtn.classList.add("hidden");
-    notFound.classList.remove("hidden");
+    document.querySelector('.gallery-container')?.classList.add('hidden');
+    notFound.classList.remove('hidden');
     return;
   }
 
-  const images = normalizeImageArray(product.images, product.image);
-  const galleryImages = images.length ? images : [PLACEHOLDER_IMAGE];
+  const galleryImages = product.images.length ? product.images : [PLACEHOLDER_IMAGE];
 
   title.textContent = product.name;
-  meta.textContent = `${formatPrice(product.price)} â€¢ ${product.category || "Autre"} â€¢ ${product.status === "sold" ? "Vendu" : "Disponible"}`;
+  meta.textContent = `${formatPrice(product.price)} • ${product.category || "Autre"} • ${product.status === "sold" ? "Vendu" : "Disponible"}`;
   description.textContent = product.description || "Sans description";
   mainImage.src = galleryImages[0];
-  mainImage.classList.remove("hidden");
 
   thumbnails.innerHTML = galleryImages
     .map((src, index) => `<img class="gallery-thumb ${index === 0 ? "active" : ""}" src="${src}" data-src="${src}" alt="Image ${index + 1}">`)
     .join("");
-  thumbnails.classList.remove("hidden");
 
   thumbnails.querySelectorAll(".gallery-thumb").forEach((thumb) => {
     thumb.addEventListener("click", () => {
-      const src = thumb.getAttribute("data-src") || "";
-      if (src) {
-        mainImage.src = src;
-          }
-          
+      mainImage.src = thumb.dataset.src || "";
       thumbnails.querySelectorAll(".gallery-thumb").forEach((el) => el.classList.remove("active"));
       thumb.classList.add("active");
     });
   });
 
-  const whatsappMessage = product.isOccasion
-    ? `?text=${encodeURIComponent(buildOccasionWhatsappMessage(product))}`
-    : "";
-  whatsapp.href = `https://wa.me/${normalizePhone(product.phone)}${whatsappMessage}`;
-  whatsapp.classList.remove("hidden");
+  const whatsappMessage = product.isOccasion ? buildOccasionWhatsappMessage(product) : buildOrderMessage("standard", product);
+  whatsapp.href = `https://wa.me/${normalizePhone(product.phone)}?text=${encodeURIComponent(whatsappMessage)}`;
 
   if (product.isOccasion) {
     source.href = "occasion.html";
-    source.textContent = "Voir sur Occasion";
-    if (addToCartBtn) {
-      addToCartBtn.classList.add("hidden");
-        }
+    source.textContent = "Voir toutes les annonces";
+    addToCartBtn?.classList.add("hidden");
       } else {
     const shopParam = product.shopId ? `?shop=${encodeURIComponent(product.shopId)}` : "";
     source.href = `boutique.html${shopParam}`;
     source.textContent = "Voir la boutique";
-
-    if (addToCartBtn) {
-      addToCartBtn.classList.remove("hidden");
-      addToCartBtn.addEventListener("click", () => addToCart(product));
+    addToCartBtn?.classList.remove("hidden");
+    addToCartBtn?.addEventListener("click", () => addToCart(product));
     }
-  }
-
-  source.classList.remove("hidden");
 }
 
 function setupCartPage() {
@@ -1460,6 +1553,7 @@ function setupProfilePage() {
   const emailEl = document.getElementById("profileEmail");
   const roleEl = document.getElementById("profileRole");
   const saveBtn = document.getElementById("saveProfileBtn");
+  const deleteAccountBtn = document.getElementById("deleteAccountBtn");
     
   if (!avatar || !nameInput || !phoneInput || !emailEl || !roleEl || !saveBtn) {
     return;
@@ -1524,7 +1618,7 @@ function setupProfilePage() {
     user.photo_profil = photoProfil;
 
     saveUsers(users);
-    write(STORAGE_KEYS.logged_user, user);
+    write(STORAGE_KEYS.loggedUser, user);
 
     if (user.type_compte === "seller") {
       const shops = getShops();
@@ -1546,10 +1640,40 @@ function setupProfilePage() {
 
     alert("Profil mis Ã  jour.");
     render(user);
+    updateAuthLink(); // Mettre à jour le header immédiatement
     if (photoInput) {
       photoInput.value = "";
   }
   });
+
+  // Gestion de la suppression de compte
+  if (deleteAccountBtn) {
+    deleteAccountBtn.addEventListener("click", () => {
+      if (confirm("⚠️ ATTENTION : Cette action est irréversible.\n\nVoulez-vous vraiment supprimer votre compte ?\nCela effacera définitivement votre profil, votre boutique et tous vos produits.")) {
+        const userId = logged.id;
+
+        // 1. Supprimer l'utilisateur
+        const users = getUsers().filter((u) => u.id !== userId);
+        saveUsers(users);
+
+        // 2. Supprimer la boutique associée
+        const shops = getShops().filter((s) => s.vendeur_id !== userId);
+        saveShops(shops);
+
+        // 3. Supprimer les produits et annonces
+        const products = getProducts().filter((p) => p.vendeur_id !== userId);
+        saveProducts(products);
+        
+        const occasions = getOccasionProducts().filter((p) => p.vendeur_id !== userId);
+        saveOccasionProducts(occasions);
+
+        // 4. Déconnexion et redirection
+        write(STORAGE_KEYS.loggedUser, null);
+        alert("Votre compte a été supprimé avec succès.");
+        window.location.href = "index.html";
+      }
+    });
+  }
 
   render(logged);
 
@@ -1579,28 +1703,61 @@ function setupMyProducts() {
   if (!user) return;
   
   function renderMyProducts() {
-    const products = getProducts().filter(p => p.vendeur_id === user.id);
-    const mapped = products.map(mapRegularProduct);
+    const regular = getProducts().filter(p => p.vendeur_id === user.id).map(mapRegularProduct);
+    const occasion = getOccasionProducts().filter(p => p.vendeur_id === user.id).map(mapOccasionToMarketplace);
+    const mapped = [...regular, ...occasion];
     
     if (mapped.length === 0) {
       container.innerHTML = "";
-      empty.style.display = "block";
+      if (empty) empty.style.display = "block";
       return;
     }
     
-    empty.style.display = "none";
+    if (empty) empty.style.display = "none";
     container.innerHTML = mapped.map(p => renderProductCard(p, { sellerActions: true })).join("");
     
     // Ajouter les événements pour marquer comme vendu
     container.querySelectorAll("button[data-action='toggle-sold']").forEach(btn => {
       btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-id");
-        const all = getProducts();
-        const target = all.find(p => p.id === id && p.vendeur_id === user.id);
-        if (!target) return;
         
-        target.status = target.status === "sold" ? "available" : "sold";
-        saveProducts(all);
+        // Vérifier d'abord les produits réguliers
+        const allRegular = getProducts();
+        const targetRegular = allRegular.find(p => p.id === id && p.vendeur_id === user.id);
+        
+        if (targetRegular) {
+          targetRegular.status = targetRegular.status === "sold" ? "available" : "sold";
+          saveProducts(allRegular);
+        } else {
+          // Sinon vérifier les produits d'occasion
+          const allOccasion = getOccasionProducts();
+          const targetOccasion = allOccasion.find(p => p.id === id && p.vendeur_id === user.id);
+          if (targetOccasion) {
+            // Mettre à jour le statut (utiliser 'status' pour la cohérence, même si 'statut' existe parfois)
+            targetOccasion.status = targetOccasion.status === "sold" ? "available" : "sold";
+            saveOccasionProducts(allOccasion);
+          }
+        }
+        renderMyProducts();
+      });
+    });
+
+    // Ajouter les événements pour supprimer
+    container.querySelectorAll("button[data-action='delete-product']").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (!confirm("Voulez-vous vraiment supprimer ce produit ?")) return;
+        const id = btn.getAttribute("data-id");
+        const origin = btn.getAttribute("data-origin");
+
+        if (origin === 'occasion') {
+          const all = getOccasionProducts();
+          const filtered = all.filter(p => p.id !== id);
+          saveOccasionProducts(filtered);
+        } else {
+          const all = getProducts();
+          const filtered = all.filter(p => p.id !== id);
+          saveProducts(filtered);
+        }
         renderMyProducts();
       });
     });
@@ -1685,6 +1842,7 @@ function setupSellerShop() {
   
   const saveShopBtn = document.getElementById("saveShopBtn");
   const shopLogoDisplay = document.getElementById("shopLogoDisplay");
+  const deleteShopBtn = document.getElementById("deleteShopBtn");
   
   // Récupérer la boutique existante
   const shops = getShops();
@@ -1699,6 +1857,12 @@ function setupSellerShop() {
     if (shopLogoDisplay && shop.logo) {
       shopLogoDisplay.src = shop.logo;
     }
+
+    // Afficher le bouton supprimer si la boutique existe
+    if (deleteShopBtn) deleteShopBtn.style.display = "block";
+  } else {
+    // Cacher le bouton supprimer si pas de boutique
+    if (deleteShopBtn) deleteShopBtn.style.display = "none";
   }
   
   // Mettre à jour la photo de profil avec le logo de la boutique
@@ -1770,7 +1934,31 @@ function setupSellerShop() {
         }
       }
       
+      updateAuthLink(); // Mettre à jour le header avec le nouveau logo
       alert("Boutique enregistrée avec succès !");
+    });
+  }
+
+  // Gestion de la suppression de boutique
+  if (deleteShopBtn) {
+    deleteShopBtn.addEventListener("click", () => {
+      if (confirm("Voulez-vous vraiment supprimer votre boutique ?\n\nVos produits resteront visibles mais ne seront plus associés à une page boutique.")) {
+        const allShops = getShops().filter((s) => s.vendeur_id !== user.id);
+        saveShops(allShops);
+
+        // Optionnel : Désassocier les produits de la boutique supprimée
+        const products = getProducts();
+        products.forEach((p) => {
+          if (p.vendeur_id === user.id) {
+            p.boutique_id = "";
+            p.shopId = "";
+          }
+        });
+        saveProducts(products);
+
+        alert("Boutique supprimée avec succès.");
+        window.location.reload();
+      }
     });
   }
 }
@@ -1779,15 +1967,53 @@ function setupSellerShop() {
    INITIALISATION PRINCIPALE
    =================================== */
 function bootstrap() {
+  const page = document.body.dataset.page;
+  const user = currentUser();
+
+  if (user) { // L'utilisateur est connecté, il ne devrait pas être sur les pages visiteur
+    switch (page) {
+      case 'home-no-connexion':
+        window.location.href = 'home.html';
+        return;
+      case 'occasion-no-connexion':
+        window.location.href = 'occasion.html';
+        return;
+      case 'boutique-no-connexion':
+        window.location.href = 'boutique.html';
+        return;
+      case 'login':
+      case 'register':
+        // Un utilisateur connecté sur la page de connexion/inscription doit être redirigé
+        window.location.href = 'home.html';
+        return;
+    }
+  } else {
+    // L'utilisateur n'est PAS connecté : protection des pages membres
+    switch (page) {
+      case 'home':        // home.html
+      case 'occasion':    // occasion.html
+      case 'boutique':    // boutique.html
+      case 'dashboard':   // dashboard.html
+      case 'publication': // publication.html
+      case 'profile':     // profile.html
+      case 'product':     // product.html
+        window.location.href = 'login.html';
+        return;
+    }
+  }
+
   ensureMenu();
   updateAuthLink();
   setupRegister();
   setupLogin();
+  setupPasswordToggle();
+  setupPasswordValidation();
   setupHome();
   setupDashboard();
   setupBoutiquePage();
-  setupOccasion();
-  setupProductGallery();
+  setupPublication();
+  setupOccasionPage();
+  setupProductDetailPage();
   setupCartPage();
   setupProfilePage();
   setupSidebarCart(); // Ajout du panier latéral

@@ -591,6 +591,68 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(255, 106, 0, 0.16);
 }
 
+/* Style pour placer l'icône œil DANS le champ mot de passe */
+.password-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.password-input-container input {
+  width: 100%;
+  padding-right: 45px; /* Espace pour ne pas écrire sous l'icône */
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent !important; /* Force la transparence */
+  border: none;
+  box-shadow: none !important; /* Enlève l'ombre du bouton standard */
+  color: #999; /* Gris discret */
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: auto;
+  z-index: 5;
+}
+
+.password-toggle:hover {
+  color: var(--primary);
+  transform: translateY(-50%); /* Maintient le centrage vertical */
+  filter: none;
+}
+
+/* Critères de mot de passe */
+.password-criteria {
+  margin: 5px 0 15px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.criteria-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  transition: color 0.2s ease;
+}
+
+.criteria-item.valid {
+  color: var(--success);
+}
+
+.criteria-icon {
+  font-weight: bold;
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+}
+
   .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -955,8 +1017,11 @@ textarea:focus {
 
   .shop-snippet img {
     width: 20px;
-    min-width: 20px;
+    height: 40px;
+    min-width: 40px;
     max-width: 20px;
+    border-radius: 50%;
+    object-fit: cover;
   }
 
   .row-actions {

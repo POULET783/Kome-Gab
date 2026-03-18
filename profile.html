@@ -7,16 +7,20 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-page="profile">
-  <header class="topbar">
+  <header class="topbar amazon-header">
     <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
-    <a class="link-btn" href="index.html">Accueil</a>
+    <div class="top-actions">
+      <a class="link-btn" href="login.html" id="authLink">Connexion</a>
+    </div>
   </header>
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
     <a href="index.html">Accueil</a>
-    <a href="cart.html">Panier</a>
+    <a href="occasion.html">Occasion</a>
     <a href="boutique.html">Boutiques</a>
-    <a href="dashboard.html">Dashboard vendeur</a>
+    <a href="publication.html">Publication</a>
+    <a href="dashboard.html">Dashboard</a>
+    <!-- <a href="register.html">Créer un compte</a> -->
   </nav>
 
   <main class="page">
@@ -39,6 +43,7 @@
         <p class="meta">Type de compte: <span id="profileRole">-</span></p>
 
         <button id="saveProfileBtn" type="button">Enregistrer le profil</button>
+        <button id="deleteAccountBtn" type="button" style="background: var(--danger); margin-top: 15px;">Supprimer mon compte</button>
       </div>
     </section>
 
@@ -75,18 +80,19 @@
           <div class="contact-item">
             <input type="email" placeholder="Email additionnel" class="additional-email">
             <input type="tel" placeholder="WhatsApp additionnel" class="additional-whatsapp">
-            <button type="button" onclick="removeContact(this)">Supprimer</button>
+            <button type="button" class="remove-contact-btn">Supprimer</button>
           </div>
         </div>
-        <button type="button" onclick="addContact()">Ajouter un contact</button>
+        <button type="button" id="addContactBtn">Ajouter un contact</button>
 
         <button id="saveShopBtn" type="button">Enregistrer la boutique</button>
+        <button id="deleteShopBtn" type="button" style="background: var(--danger); margin-top: 15px;">Supprimer ma boutique</button>
       </div>
     </section>
   </main>
 
   <!-- Modal pour afficher les photos de profil en grand -->
-  <div id="profileImageModal" class="profile-image-modal" onclick="closeProfileImageModal()">
+  <div id="profileImageModal" class="profile-image-modal">
     <img id="modalProfileImage" src="" alt="Photo de profil en grand">
   </div>
 

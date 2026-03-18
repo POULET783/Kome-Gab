@@ -5,17 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Connexion - Kome-Gab</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body data-page="login">
   <header class="topbar">
-    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="brand-logo" href="index-no-connexion.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
     <a class="link-btn" href="register.html">Inscription</a>
   </header>
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
-    <a href="index.html">Accueil</a>
-    <a href="occasion.html">Occasion</a>
-    <a href="register.html">Créer un compte</a>
+    <a href="index-no-connexion.html">Accueil</a>
+    <a href="occasion-no-connexion.html">Occasion</a>
+    <a href="boutique-no-connexion.html">Boutiques</a>
   </nav>
 
   <main class="page">
@@ -25,7 +26,12 @@
       <input id="email" type="email" placeholder="email@exemple.com">
 
       <label for="password">Mot de passe</label>
+      <div class="password-input-container">
       <input id="password" type="password" placeholder="Votre mot de passe">
+        <button type="button" class="password-toggle" id="passwordToggle">
+          <i class="fa-solid fa-eye"></i>
+        </button>
+      </div>
 
       <button id="loginBtn">Se connecter</button>
       <p class="small">Pas encore de compte ? <a href="register.html">Créer un compte</a></p>

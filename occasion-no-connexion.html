@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -6,24 +6,18 @@
   <title>Produits d'occasion - Kome-Gab</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="occasion">
+<body data-page="occasion-no-connexion">
   <header class="topbar amazon-header">
-    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <a class="brand-logo" href="index-no-connexion.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
     <div class="top-actions">
-      <a class="profile-avatar-link" href="profile.html" id="profileAvatarLink">
-        <img id="headerProfileAvatar" class="header-profile-avatar" src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff&size=32" alt="Profil">
-      </a>
-      <a class="link-btn" href="index-no-connexion.html">Déconnexion</a>
+      <a class="link-btn" href="login.html" id="authLink">Connexion</a>
     </div>
   </header>
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
-    <a href="index.html">Accueil</a>
-    <a href="occasion.html">Occasion</a>
-    <a href="boutique.html">Boutiques</a>
-    <a href="publication.html">Publication</a>
-    <a href="dashboard.html">Dashboard</a>
-    <!-- <a href="register.html">Créer un compte</a> -->
+    <a href="index-no-connexion.html">Accueil</a>
+    <a href="occasion-no-connexion.html">Occasion</a>
+    <a href="boutique-no-connexion.html">Boutiques</a>
   </nav>
 
   <main class="page">
@@ -52,13 +46,13 @@
       </div>
     </section>
 
+    <section class="panel">
+      <h3>Annonces d'occasion</h3>
+      <div id="occasionList" class="cards"></div>
+      <p id="emptyOccasion" class="empty">Aucune annonce publiée.</p>
+    </section>
   </main>
 
   <script type="module" src="js/script.js"></script>
 </body>
 </html>
-
-
-
-
-
