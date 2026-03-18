@@ -213,6 +213,19 @@ export const saveShopToFirestore = async (data, id = null) => {
   return (await addDoc(collection(db, "shops"), data)).id; // Création
 };
 
+/**
+ * Met à jour les informations d'un utilisateur dans Firestore
+ */
+export const updateUserInFirestore = async (uid, data) => {
+  try {
+    const userRef = doc(db, "users", uid);
+    await updateDoc(userRef, {
+      ...data,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) { console.error("Erreur update user:", error); throw error; }
+};
+
 // --- 3. FIRESTORE (Affichage des produits) ---
 
 const loadOccasionProducts = async () => {

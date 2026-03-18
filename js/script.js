@@ -1,7 +1,7 @@
 // Script.js
 
 // Import des fonctions Firebase et Cloudinary
-import { uploadImageToCloudinary, saveOccasionProduct, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, logoutUser, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore } from '../firebase-app.js';
+import { uploadImageToCloudinary, saveOccasionProduct, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, logoutUser, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, updateUserInFirestore } from '../firebase-app.js';
 
 const STORAGE_KEYS = {
   users: "mg_users",
@@ -1675,55 +1675,53 @@ function setupProfilePage() {
       return;
     }
 
+    // Feedback visuel
+    const originalBtnText = saveBtn.textContent;
+    saveBtn.textContent = "Sauvegarde en cours...";
+    saveBtn.disabled = true;
+
     let photoProfil = avatar.src;
+    const fileInput = document.getElementById("profilePhotoFile");
+
     try {
-      const imgs = await getImagesDataFromInput("profilePhotoFile");
-      if (imgs[0]) {
-        photoProfil = imgs[0];
+      // 1. Upload de la nouvelle image si sélectionnée
+      if (fileInput && fileInput.files.length > 0) {
+        try {
+          photoProfil = await uploadImageToCloudinary(fileInput.files[0]);
+        } catch (error) {
+          alert("Erreur lors de l'envoi de l'image : " + error.message);
+          saveBtn.textContent = originalBtnText;
+          saveBtn.disabled = false;
+          return;
+        }
       }
+
+      // 2. Préparation des données
+      const updateData = {
+        nom: nom,
+        numero_whatsapp: numero_whatsapp,
+        photo_profil: photoProfil
+      };
+
+      // 3. Sauvegarde dans Firestore
+      await updateUserInFirestore(logged.id, updateData);
+
+      // 4. Mise à jour de la session locale (pour affichage immédiat sans rechargement)
+      const updatedUser = { ...logged, ...updateData };
+      write(STORAGE_KEYS.loggedUser, updatedUser);
+      
+      alert("Profil mis à jour avec succès !");
+      render(updatedUser);
+      updateAuthLink(); // Mettre à jour le header immédiatement
+      if (fileInput) fileInput.value = "";
+
     } catch (error) {
-      alert(error.message);
-      return;
+      console.error(error);
+      alert("Erreur lors de la mise à jour : " + error.message);
+    } finally {
+      saveBtn.textContent = originalBtnText;
+      saveBtn.disabled = false;
     }
-
-    const users = getUsers();
-    const user = users.find((u) => u.id === logged.id || u.email === logged.email);
-    if (!user) {
-      alert("Utilisateur introuvable.");
-      return;
-}
-
-    user.nom = nom;
-    user.numero_whatsapp = numero_whatsapp;
-    user.photo_profil = photoProfil;
-
-    saveUsers(users);
-    write(STORAGE_KEYS.loggedUser, user);
-
-    if (user.type_compte === "seller") {
-      const shops = getShops();
-      shops.forEach((s) => {
-        if (s.vendeur_id === user.id) {
-          s.contact_whatsapp = numero_whatsapp;
-        }
-      });
-      saveShops(shops);
-
-      const products = getProducts();
-      products.forEach((p) => {
-        if (p.vendeur_id === user.id) {
-          p.phone = numero_whatsapp;
-        }
-      });
-      saveProducts(products);
-    }
-
-    alert("Profil mis Ã  jour.");
-    render(user);
-    updateAuthLink(); // Mettre à jour le header immédiatement
-    if (photoInput) {
-      photoInput.value = "";
-  }
   });
 
   // Gestion de la suppression de compte
