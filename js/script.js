@@ -1,7 +1,7 @@
 // Script.js
 
 // Import des fonctions Firebase et Cloudinary
-import { uploadImageToCloudinary, saveOccasionProduct, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, logoutUser, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, updateUserInFirestore } from '../firebase-app.js';
+import { uploadImageToCloudinary, saveOccasionProduct, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, logoutUser, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, updateUserInFirestore, saveReview, getReviews, toggleShopFollow } from '../firebase-app.js';
 
 const STORAGE_KEYS = {
   users: "mg_users",
@@ -676,6 +676,53 @@ function toAbsoluteUrl(pathOrUrl) {
   }
 }
 
+/* ===================================
+   GESTION DES FAVORIS (LIKES)
+   =================================== */
+async function toggleLike(id, type) {
+  const user = currentUser();
+  if (!user) {
+    alert("Veuillez vous connecter pour ajouter des favoris.");
+    return;
+  }
+
+  const field = type === 'product' ? 'likedProducts' : 'favoriteShops';
+  
+  let list = user[field] || [];
+
+  if (list.includes(id)) {
+    list = list.filter(item => item !== id); // Retirer
+  } else {
+    list.push(id); // Ajouter
+  }
+
+  // Mise à jour locale
+  user[field] = list;
+  write(STORAGE_KEYS.loggedUser, user);
+
+  // Mise à jour Firestore
+  try {
+    if (type === 'shop') {
+      // Pour les boutiques, on utilise la transaction spéciale (bidirectionnelle)
+      await toggleShopFollow(user.id, id);
+      // Recharger les données pour avoir les compteurs à jour
+      await syncData();
+    } else {
+      // Pour les produits, simple update
+      await updateUserInFirestore(user.id, { [field]: list });
+    }
+    
+    // Mettre à jour l'UI immédiatement (tous les boutons avec cet ID)
+    document.querySelectorAll(`.like-btn[data-id="${id}"]`).forEach(btn => {
+      btn.classList.toggle("active");
+    });
+    
+  } catch (error) {
+    console.error("Erreur sauvegarde like:", error);
+    alert("Erreur lors de la mise à jour des favoris.");
+  }
+}
+
 function bindAddToCartButtons(root) {
   if (!root) return;
 
@@ -692,6 +739,21 @@ function bindAddToCartButtons(root) {
     }
 
       addToCart(product);
+    });
+  });
+
+  // Bind Like Buttons
+  root.querySelectorAll(".like-btn").forEach((btn) => {
+    // Retirer les anciens listeners pour éviter les doublons (si re-render)
+    const newBtn = btn.cloneNode(true); 
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    newBtn.addEventListener("click", (e) => {
+      e.preventDefault(); // Empêcher le clic sur l'image
+      e.stopPropagation();
+      const id = newBtn.getAttribute("data-id");
+      const type = newBtn.getAttribute("data-type");
+      toggleLike(id, type);
     });
   });
 }
@@ -719,6 +781,21 @@ function renderProductCard(product, opts = {}) {
   const shopParam = normalized.shopId ? `?shop=${encodeURIComponent(normalized.shopId)}` : "";
   const isSold = normalized.status === "sold";
   const galleryUrl = getProductDetailUrl(normalized);
+
+  // État du like
+  const user = currentUser();
+  const isLiked = user && user.likedProducts && user.likedProducts.includes(normalized.id);
+  const likeBtn = `<button class="like-btn ${isLiked ? 'active' : ''}" data-id="${normalized.id}" data-type="product" title="${isLiked ? 'Retirer des favoris' : 'Ajouter aux favoris'}">♥</button>`;
+
+  // Calcul du badge "Nouveau" (moins de 3 jours)
+  let isNew = false;
+  const dateVal = normalized.createdAt || normalized.date_publication || normalized.date_creation;
+  if (dateVal && !isSold) {
+    try {
+      const pDate = (typeof dateVal.toDate === 'function') ? dateVal.toDate() : new Date(dateVal);
+      if ((new Date() - pDate) / (1000 * 60 * 60 * 24) <= 3) isNew = true;
+    } catch (e) {}
+  }
 
   const shop = !normalized.isOccasion
     ? getShops().find((s) => s.id === normalized.shopId || s.id === normalized.boutique_id)
@@ -751,11 +828,13 @@ function renderProductCard(product, opts = {}) {
   return `
     <article class="card compact-card">
       <a class="card-image-link" href="${galleryUrl}">
+        ${likeBtn}
         <img src="${coverImage}" alt="${normalized.name}">
       </a>
       <div class="card-body">
         ${shopSnippet}
         <span class="tag ${isSold ? "sold" : ""}">${isSold ? "Vendu" : "Disponible"}</span>
+        ${isNew ? `<span class="tag" style="background: #e6f4ea; color: #1e8e3e; margin-left: 4px;">Nouveau</span>` : ""}
         <h4><a class="product-title-link" href="${galleryUrl}">${normalized.name}</a></h4>
         <p class="meta">${formatPrice(normalized.price)} • ${normalized.category || "Autre"}</p>
         <p class="meta clamp-two">${normalized.description || "Sans description"}</p>
@@ -1056,6 +1135,8 @@ async function setupDashboard() {
     document.getElementById("shopDescriptionInput").value = shop.description || "";
     document.getElementById("shopLogoInput").value = shop.logo || "";
     document.getElementById("shopExternalLinkInput").value = shop.lien_site || "";
+    const hoursInput = document.getElementById("shopHoursInput");
+    if (hoursInput) hoursInput.value = shop.horaires || "";
     renderUploadPreview("shopLogoPreview", shop.logo ? [shop.logo] : []);
   }
 
@@ -1105,6 +1186,7 @@ async function setupDashboard() {
     const description = document.getElementById("shopDescriptionInput").value.trim();
     const logoFromUrl = document.getElementById("shopLogoInput").value.trim();
     const lien_site = document.getElementById("shopExternalLinkInput").value.trim();
+    const horaires = document.getElementById("shopHoursInput")?.value.trim() || null;
 
     if (!nom) {
       alert("Le nom de la boutique est obligatoire.");
@@ -1131,7 +1213,8 @@ async function setupDashboard() {
         logo,
         vendeur_id: user.id,
         contact_whatsapp: user.numero_whatsapp,
-        lien_site
+        lien_site,
+        horaires
       };
 
     try {
@@ -1225,6 +1308,9 @@ async function setupBoutiquePage() {
   const searchBtn = document.getElementById("boutiqueSearchBtn");
   const params = new URLSearchParams(window.location.search);
   const shopId = params.get("shop");
+  
+  // Déterminer la page cible (boutique.html ou boutique-no-connexion.html) pour rester cohérent
+  const targetPage = document.body.dataset.page === 'boutique-no-connexion' ? 'boutique-no-connexion.html' : 'boutique.html';
 
   await syncData();
 
@@ -1273,20 +1359,47 @@ async function setupBoutiquePage() {
           );
         });
 
+
         return nameMatch || descMatch || productMatch;
       })
       .map((shop) => {
         const count = products.filter((p) => p.shopId === shop.id || p.boutique_id === shop.id).length;
+        
+        // Badge Ouvert/Fermé automatique
+        let statusBadge = "";
+        try {
+          if (shop.openTime && shop.closeTime) {
+              const now = new Date();
+              const currentMins = now.getHours() * 60 + now.getMinutes();
+              const [oH, oM] = shop.openTime.split(':').map(Number);
+              const [cH, cM] = shop.closeTime.split(':').map(Number);
+              const start = oH * 60 + oM;
+              const end = cH * 60 + cM;
+              
+              const isOpen = end < start ? (currentMins >= start || currentMins < end) : (currentMins >= start && currentMins < end);
+              statusBadge = isOpen 
+                  ? `<span class="tag" style="background:#e6f4ea; color:#1e8e3e; margin-left:5px;">Ouvert</span>` 
+                  : `<span class="tag" style="background:#fce8e6; color:#c5221f; margin-left:5px;">Fermé</span>`;
+          }
+        } catch (e) { console.error("Erreur calcul horaires", e); }
+
+        // État favori boutique (Déplacé ici pour être accessible dans le HTML)
+        const user = currentUser();
+        const isFav = user && user.favoriteShops && user.favoriteShops.includes(shop.id);
+        const favBtnStr = user ? `<button class="like-btn ${isFav ? 'active' : ''}" data-id="${shop.id}" data-type="shop" style="position:static; width:auto; height:auto; background:none; box-shadow:none;">${isFav ? '♥ Suivi' : '♡ Suivre'}</button>` : '';
+
     return `
           <article class="card compact-card">
             <img src="${shop.logo || "https://placehold.co/640x360?text=Boutique"}" alt="${shop.nom}">
         <div class="card-body">
           <h4>${shop.nom}</h4>
               <p class="meta clamp-two">${shop.description || "Sans description"}</p>
+              ${shop.horaires ? `<p class="meta" style="font-size: 0.85rem; color: var(--primary);">🕒 ${shop.horaires} ${statusBadge}</p>` : (statusBadge ? `<p class="meta">${statusBadge}</p>` : "")}
           <p class="meta">${count} produit(s)</p>
           <div class="row-actions">
+                ${favBtnStr}
                 <a class="link-btn" href="https://wa.me/${normalizePhone(shop.contact_whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>
-            <a class="link-btn secondary" href="boutique.html?shop=${encodeURIComponent(shop.id)}">Voir les produits</a>
+            <a class="link-btn secondary" href="${targetPage}?shop=${encodeURIComponent(shop.id)}">Voir les produits</a>
           </div>
         </div>
       </article>
@@ -1294,6 +1407,20 @@ async function setupBoutiquePage() {
       });
 
     container.innerHTML = byShop.join("");
+    
+    // Bind des boutons like boutique
+    container.querySelectorAll(".like-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.getAttribute("data-id");
+        toggleLike(id, 'shop');
+        // Mise à jour visuelle spécifique pour le texte du bouton boutique
+        const isActive = !btn.classList.contains("active"); // On vient de toggle dans la fonction, mais l'UI n'est pas encore rafraichie ici pour le texte
+        btn.textContent = isActive ? '♥ Suivi' : '♡ Suivre';
+      });
+    });
+
     empty.style.display = byShop.length ? "none" : "block";
   }
 
@@ -1347,6 +1474,7 @@ async function setupOccasionPage() {
       });
 
     container.innerHTML = products.map((p) => renderProductCard(p)).join("");
+    bindAddToCartButtons(container); // Important pour attacher les événements like
     if (empty) empty.style.display = products.length ? "none" : "block";
   }
 
@@ -1444,6 +1572,73 @@ function setupPublication() {
   });
 }
 
+/* --- GESTION DES AVIS --- */
+function renderReviewsSection(container, product, user) {
+  // Nettoyer l'existant
+  const existing = document.getElementById("reviewsSection");
+  if (existing) existing.remove();
+
+  const section = document.createElement("section");
+  section.id = "reviewsSection";
+  section.className = "panel reviews-section";
+  section.innerHTML = `
+    <h3>Avis clients</h3>
+    <div id="reviewsList" class="reviews-list">Chargement des avis...</div>
+    ${user ? `
+      <div class="review-form">
+        <h4>Laisser un avis</h4>
+        <div class="star-rating" id="starRatingInput">
+          <span class="star" data-value="1">★</span>
+          <span class="star" data-value="2">★</span>
+          <span class="star" data-value="3">★</span>
+          <span class="star" data-value="4">★</span>
+          <span class="star" data-value="5">★</span>
+        </div>
+        <textarea id="reviewComment" placeholder="Votre commentaire..." rows="3"></textarea>
+        <button id="submitReviewBtn" style="margin-top:10px;">Publier l'avis</button>
+      </div>
+    ` : `<p><a href="login.html" style="color:var(--primary);">Connectez-vous</a> pour laisser un avis.</p>`}
+  `;
+
+  container.appendChild(section);
+
+  // Logique de notation (étoiles)
+  let currentRating = 0;
+  if (user) {
+    const stars = section.querySelectorAll(".star");
+    stars.forEach(star => {
+      star.addEventListener("click", () => {
+        currentRating = parseInt(star.dataset.value);
+        stars.forEach(s => {
+          s.classList.toggle("active", parseInt(s.dataset.value) <= currentRating);
+        });
+      });
+    });
+
+    document.getElementById("submitReviewBtn").addEventListener("click", async () => {
+      const comment = document.getElementById("reviewComment").value.trim();
+      if (currentRating === 0) return alert("Veuillez sélectionner une note (étoiles).");
+      
+      try {
+        await saveReview({
+          productId: product.id,
+          userId: user.id,
+          userName: user.nom || user.email,
+          rating: currentRating,
+          comment: comment
+        });
+        alert("Avis publié !");
+        window.location.reload(); // Recharger pour voir l'avis
+      } catch (e) {
+        console.error(e);
+        alert("Erreur lors de l'envoi de l'avis.");
+      }
+    });
+  }
+
+  return document.getElementById("reviewsList");
+}
+
 async function setupProductDetailPage() {
   const page = document.body.dataset.page;
   if (page !== 'product') return;
@@ -1473,6 +1668,7 @@ async function setupProductDetailPage() {
   const source = document.getElementById("gallerySource");
   const addToCartBtn = document.getElementById("galleryAddToCart");
   const notFound = document.getElementById("galleryNotFound");
+  const pageContainer = document.querySelector(".page"); // Conteneur principal pour ajouter la section avis
 
   if (!title || !mainImage || !notFound) return;
 
@@ -1488,6 +1684,39 @@ async function setupProductDetailPage() {
 
   title.textContent = product.name;
   meta.textContent = `${formatPrice(product.price)} • ${product.category || "Autre"} • ${product.status === "sold" ? "Vendu" : "Disponible"}`;
+  
+  // --- CHARGEMENT DES AVIS ---
+  const reviews = await getReviews(product.id);
+  
+  // Calcul moyenne
+  if (reviews.length > 0) {
+    const avg = reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length;
+    const starsStr = "★".repeat(Math.round(avg)) + "☆".repeat(5 - Math.round(avg));
+    // Ajouter la moyenne sous le titre
+    const ratingEl = document.createElement("div");
+    ratingEl.innerHTML = `<span style="color:#ffc107; font-size:1.1rem;">${starsStr}</span> <span class="meta">(${reviews.length} avis)</span>`;
+    title.parentNode.insertBefore(ratingEl, title.nextSibling);
+  }
+
+  // Afficher la section avis
+  if (pageContainer) {
+    const reviewsListEl = renderReviewsSection(pageContainer, product, currentUser());
+    if (reviews.length === 0) {
+      reviewsListEl.innerHTML = "<p class='meta'>Aucun avis pour le moment.</p>";
+    } else {
+      reviewsListEl.innerHTML = reviews.map(r => `
+        <div class="review-item">
+          <div class="review-header">
+            <span>${r.userName}</span>
+            <span class="review-stars">${"★".repeat(r.rating)}</span>
+          </div>
+          <p>${r.comment || ""}</p>
+          <small class="meta">${new Date(r.createdAt).toLocaleDateString()}</small>
+        </div>
+      `).join("");
+    }
+  }
+
   description.textContent = product.description || "Sans description";
   mainImage.src = galleryImages[0];
 
@@ -1652,6 +1881,43 @@ function setupProfilePage() {
     phoneInput.value = user.numero_whatsapp || "";
     emailEl.textContent = user.email || "-";
     roleEl.textContent = user.type_compte === "seller" ? "Vendeur" : "Utilisateur";
+
+    // --- INJECTION DES STATS (Abonnés / Abonnements) ---
+    const existingStats = document.querySelector(".profile-stats");
+    if (existingStats) existingStats.remove();
+
+    const statsContainer = document.createElement("div");
+    statsContainer.className = "profile-stats";
+    
+    // Calculs
+    const followingCount = (user.favoriteShops || []).length;
+    let followersCount = 0;
+    
+    // Si c'est un vendeur, on cherche sa boutique pour compter les followers
+    if (user.type_compte === "seller") {
+      const myShop = getShops().find(s => s.vendeur_id === user.id);
+      if (myShop && myShop.followers) {
+        followersCount = myShop.followers.length;
+      }
+    }
+
+    statsContainer.innerHTML = `
+      <div class="stat-item">
+        <span class="stat-value">${followingCount}</span>
+        <span class="stat-label">Abonnements</span>
+      </div>
+      ${user.type_compte === "seller" ? `
+      <div class="stat-item">
+        <span class="stat-value">${followersCount}</span>
+        <span class="stat-label">Abonnés</span>
+      </div>` : ''}
+    `;
+
+    // Insérer après l'avatar
+    const avatarWrap = document.querySelector(".profile-avatar-wrap");
+    if (avatarWrap) {
+      avatarWrap.parentNode.insertBefore(statsContainer, avatarWrap.nextSibling);
+    }
   }
 
   photoInput?.addEventListener("change", async () => {
@@ -1754,6 +2020,73 @@ function setupProfilePage() {
   }
 
   render(logged);
+
+  // --- SECTION FAVORIS ---
+  const favoritesContainer = document.createElement("section");
+  favoritesContainer.className = "panel";
+  favoritesContainer.innerHTML = `
+    <h2>Mes Favoris</h2>
+    <h3>Produits aimés</h3>
+    <div id="likedProductsList" class="cards" style="margin-bottom: 20px;"></div>
+    <p id="emptyLikedProducts" class="empty">Aucun produit en favori.</p>
+    
+    <h3>Boutiques suivies</h3>
+    <div id="followedShopsList" class="cards"></div>
+    <p id="emptyFollowedShops" class="empty">Aucune boutique suivie.</p>
+  `;
+  
+  // Insérer après la section profil (avant "Mes produits")
+  const profileCard = document.querySelector(".profile-card");
+  profileCard.parentNode.insertBefore(favoritesContainer, profileCard.nextSibling);
+
+  async function renderFavorites() {
+    await syncData();
+    const currentUserData = currentUser(); // Recharger les données fraîches
+    
+    // 1. Produits
+    const likedIds = currentUserData.likedProducts || [];
+    const allProducts = getMarketplaceProducts();
+    const likedProducts = allProducts.filter(p => likedIds.includes(p.id));
+    
+    const productsContainer = document.getElementById("likedProductsList");
+    const emptyProducts = document.getElementById("emptyLikedProducts");
+    
+    productsContainer.innerHTML = likedProducts.map(p => renderProductCard(p)).join("");
+    emptyProducts.style.display = likedProducts.length ? "none" : "block";
+    bindAddToCartButtons(productsContainer); // Activer les boutons like/cart
+
+    // 2. Boutiques
+    const favShopIds = currentUserData.favoriteShops || [];
+    const allShops = getShops();
+    const favShops = allShops.filter(s => favShopIds.includes(s.id));
+    
+    const shopsContainer = document.getElementById("followedShopsList");
+    const emptyShops = document.getElementById("emptyFollowedShops");
+
+    // Réutilisation simple du snippet boutique ou carte simplifiée
+    shopsContainer.innerHTML = favShops.map(s => `
+      <div class="card compact-card" style="text-align:center; padding:10px;">
+        <a href="boutique.html?shop=${s.id}">
+          <img src="${s.logo || "https://placehold.co/100x100"}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; margin:0 auto 10px;">
+          <h4>${s.nom}</h4>
+        </a>
+        <button class="like-btn active" data-id="${s.id}" data-type="shop" style="position:static; margin:0 auto;">♥</button>
+      </div>
+    `).join("");
+    
+    emptyShops.style.display = favShops.length ? "none" : "block";
+
+    // Bind boutons like boutiques dans le profil
+    shopsContainer.querySelectorAll(".like-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const id = btn.getAttribute("data-id");
+        await toggleLike(id, 'shop');
+        renderFavorites(); // Re-render pour enlever l'élément
+      });
+    });
+  }
+
+  renderFavorites();
 
   // Ajouter la fonctionnalité "Mes produits"
   setupMyProducts();
@@ -1929,6 +2262,7 @@ async function setupSellerShop() {
   
   const saveShopBtn = document.getElementById("saveShopBtn");
   const shopLogoDisplay = document.getElementById("shopLogoDisplay");
+  const shopLogoFile = document.getElementById("shopLogoFile");
   const deleteShopBtn = document.getElementById("deleteShopBtn");
   
   // Récupérer la boutique existante
@@ -1941,6 +2275,12 @@ async function setupSellerShop() {
     document.getElementById("shopDescriptionInput").value = shop.description || "";
     document.getElementById("shopLogoInput").value = shop.logo || "";
     document.getElementById("shopExternalLinkInput").value = shop.lien_site || "";
+    const hoursInput = document.getElementById("shopHoursInput");
+    if (hoursInput) hoursInput.value = shop.horaires || "";
+    const openInput = document.getElementById("shopOpenTimeInput");
+    const closeInput = document.getElementById("shopCloseTimeInput");
+    if (openInput) openInput.value = shop.openTime || "";
+    if (closeInput) closeInput.value = shop.closeTime || "";
     if (shopLogoDisplay && shop.logo) {
       shopLogoDisplay.src = shop.logo;
     }
@@ -1951,6 +2291,19 @@ async function setupSellerShop() {
     // Cacher le bouton supprimer si pas de boutique
     if (deleteShopBtn) deleteShopBtn.style.display = "none";
   }
+
+  // Prévisualisation du logo de la boutique lors de la sélection
+  shopLogoFile?.addEventListener("change", async () => {
+    try {
+      const imgs = await getImagesDataFromInput("shopLogoFile");
+      if (imgs[0] && shopLogoDisplay) {
+        shopLogoDisplay.src = imgs[0];
+      }
+    } catch (error) {
+      alert(error.message);
+      shopLogoFile.value = "";
+    }
+  });
   
   // Mettre à jour la photo de profil avec le logo de la boutique
   if (shopLogoDisplay && shop && shop.logo) {
@@ -1962,11 +2315,13 @@ async function setupSellerShop() {
   
   // Gérer la sauvegarde de la boutique
   if (saveShopBtn) {
-    saveShopBtn.addEventListener("click", () => {
+    saveShopBtn.addEventListener("click", async () => {
       const nom = document.getElementById("shopNameInput").value.trim();
       const description = document.getElementById("shopDescriptionInput").value.trim();
-      const logo = document.getElementById("shopLogoInput").value.trim();
-      const lien_site = document.getElementById("shopExternalLinkInput").value.trim();
+      const lien_site = document.getElementById("shopExternalLinkInput")?.value.trim() || null;
+      const horaires = document.getElementById("shopHoursInput")?.value.trim() || null;
+      const openTime = document.getElementById("shopOpenTimeInput")?.value || null;
+      const closeTime = document.getElementById("shopCloseTimeInput")?.value || null;
       
       if (!nom) {
         alert("Le nom de la boutique est obligatoire.");
@@ -1988,41 +2343,55 @@ async function setupSellerShop() {
           additionalWhatsapps.push(normalizePhone(input.value.trim()));
         }
       });
+
+      // Feedback visuel
+      const originalBtnText = saveShopBtn.textContent;
+      saveShopBtn.textContent = "Sauvegarde en cours...";
+      saveShopBtn.disabled = true;
+
+      try {
+        let logoUrl = document.getElementById("shopLogoInput").value.trim();
+        
+        // Upload de la nouvelle image si sélectionnée
+        if (shopLogoFile && shopLogoFile.files.length > 0) {
+          logoUrl = await uploadImageToCloudinary(shopLogoFile.files[0]);
+        } else if (!logoUrl && shop && shop.logo) {
+          // Si pas de nouveau fichier et pas d'URL saisie manuellement, on garde l'ancien logo
+          logoUrl = shop.logo;
+        }
       
-      // Mettre à jour ou créer la boutique
-      const allShops = getShops();
-      let targetShop = allShops.find(s => s.vendeur_id === user.id);
-      
-      if (!targetShop) {
-        targetShop = {
-          id: uid("shop"),
+      const shopData = {
+          nom,
+          description,
+          logo: logoUrl,
+          lien_site,
+          horaires,
+          openTime,
+          closeTime,
           vendeur_id: user.id,
           contact_whatsapp: user.numero_whatsapp,
-          date_creation: new Date().toISOString()
-        };
-        allShops.push(targetShop);
+          additional_emails: additionalEmails,
+          additional_whatsapps: additionalWhatsapps
+      };
+
+          await saveShopToFirestore(shopData, shop ? shop.id : null);
+          await syncData();
+          if (shopLogoDisplay && logoUrl) {
+            shopLogoDisplay.src = logoUrl;
+            const profileAvatar = document.getElementById("profileAvatar");
+            if (profileAvatar) profileAvatar.src = logoUrl;
+          }  
+          
+          updateAuthLink();
+          alert("Boutique enregistrée avec succès !");
+          if (shopLogoFile) shopLogoFile.value = ""; // Reset de l'input
+      } catch(e) {
+          console.error(e);
+          alert("Erreur: " + e.message);
+      } finally {
+          saveShopBtn.textContent = originalBtnText;
+          saveShopBtn.disabled = false;
       }
-      
-      targetShop.nom = nom;
-      targetShop.description = description;
-      targetShop.logo = logo;
-      targetShop.lien_site = lien_site;
-      targetShop.additional_emails = additionalEmails;
-      targetShop.additional_whatsapps = additionalWhatsapps;
-      
-      saveShops(allShops);
-      
-      // Mettre à jour la photo de profil
-      if (shopLogoDisplay && logo) {
-        shopLogoDisplay.src = logo;
-        const profileAvatar = document.getElementById("profileAvatar");
-        if (profileAvatar) {
-          profileAvatar.src = logo;
-        }
-      }
-      
-      updateAuthLink(); // Mettre à jour le header avec le nouveau logo
-      alert("Boutique enregistrée avec succès !");
     });
   }
 

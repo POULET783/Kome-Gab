@@ -673,7 +673,36 @@ textarea:focus {
   box-shadow: var(--shadow-md);
 }
 
+.like-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #ccc;
+  transition: all 0.2s ease;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.like-btn.active {
+  color: #e91e63; /* Rose/Rouge */
+}
+
+.like-btn:hover {
+  transform: scale(1.1);
+}
+
 .card-image-link {
+  position: relative; /* Pour positionner le bouton like */
   display: block;
   line-height: 0;
   background: #eef4fb;
@@ -900,6 +929,42 @@ textarea:focus {
   background: #eef2f7;
 }
 
+.profile-image-container {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 4px solid #d9f3e9;
+  overflow: hidden;
+}
+
+.profile-image-container .profile-avatar {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+.profile-edit-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 6px 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  text-align: center;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  z-index: 5;
+}
+
+.profile-edit-overlay:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
 .hidden {
   display: none;
 }
@@ -1066,6 +1131,34 @@ textarea:focus {
   .cart-item {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===================================
+   STATS PROFIL (FOLLOWERS)
+   =================================== */
+.profile-stats {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin: 15px 0;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
   /* Panier latéral moderne */
@@ -1536,6 +1629,59 @@ textarea:focus {
     width: 60px;
     height: 60px;
   }
+}
+
+/* ===================================
+   AVIS CLIENTS (REVIEWS)
+   =================================== */
+.reviews-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.review-form {
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.star-rating {
+  display: flex;
+  gap: 5px;
+  font-size: 24px;
+  color: #ccc;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.star-rating .star.active {
+  color: #ffc107; /* Or/Jaune */
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.review-item {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.review-stars {
+  color: #ffc107;
+  margin-right: 8px;
 }
 
 /* PANIER LATERAL TYPE AMAZON */

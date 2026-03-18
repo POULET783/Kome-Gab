@@ -1,7 +1,7 @@
 // Importation des SDKs Firebase (v9 modular)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, setDoc, getDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, setDoc, getDoc, deleteDoc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- CONFIGURATION ---
 
@@ -211,6 +211,74 @@ export const saveShopToFirestore = async (data, id = null) => {
     return id;
   }
   return (await addDoc(collection(db, "shops"), data)).id; // Création
+};
+
+/**
+ * Gère le système de Follow (User -> Boutique) via Transaction
+ * Met à jour à la fois la liste favoriteShops de l'utilisateur ET la liste followers de la boutique
+ */
+export const toggleShopFollow = async (userId, shopId) => {
+  const userRef = doc(db, "users", userId);
+  const shopRef = doc(db, "shops", shopId);
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+      const shopDoc = await transaction.get(shopRef);
+
+      if (!userDoc.exists() || !shopDoc.exists()) throw "Document introuvable !";
+
+      const userData = userDoc.data();
+      const shopData = shopDoc.data();
+
+      const favorites = userData.favoriteShops || [];
+      const followers = shopData.followers || [];
+
+      let newFavorites, newFollowers;
+
+      if (favorites.includes(shopId)) {
+        // Désabonnement
+        newFavorites = favorites.filter(id => id !== shopId);
+        newFollowers = followers.filter(id => id !== userId);
+      } else {
+        // Abonnement
+        newFavorites = [...favorites, shopId];
+        newFollowers = [...followers, userId]; // On ajoute l'ID de l'user aux followers de la boutique
+      }
+
+      transaction.update(userRef, { favoriteShops: newFavorites });
+      transaction.update(shopRef, { followers: newFollowers });
+    });
+  } catch (e) {
+    console.error("Erreur Transaction Follow:", e);
+    throw e;
+  }
+};
+
+/**
+ * Sauvegarder un avis produit
+ */
+export const saveReview = async (reviewData) => {
+  try {
+    await addDoc(collection(db, "reviews"), {
+      ...reviewData,
+      createdAt: new Date().toISOString()
+    });
+  } catch (error) { console.error("Erreur save review:", error); throw error; }
+};
+
+/**
+ * Récupérer les avis d'un produit
+ */
+export const getReviews = async (productId) => {
+  try {
+    const q = query(collection(db, "reviews"), where("productId", "==", productId), orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Erreur get reviews:", error);
+    return [];
+  }
 };
 
 /**
