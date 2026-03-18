@@ -1,5 +1,8 @@
 // Script.js
 
+// Import des fonctions Firebase et Cloudinary
+import { uploadImageToCloudinary, saveOccasionProduct, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, logoutUser, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore } from '../firebase-app.js';
+
 const STORAGE_KEYS = {
   users: "mg_users",
   products: "mg_products",
@@ -30,6 +33,16 @@ function uid(prefix) {
   return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 }
 
+// --- SYSTEME DE CACHE SYNCRO FIREBASE ---
+let cachedProducts = [];
+let cachedShops = [];
+
+async function syncData() {
+  cachedProducts = await getAllProducts();
+  cachedShops = await getAllShops();
+  console.log("Données synchronisées depuis Firebase");
+}
+
 function currentUser() {
   return read(STORAGE_KEYS.loggedUser, null);
 }
@@ -57,9 +70,10 @@ function updateAuthLink() {
     if (logged) {
       authLink.textContent = "Déconnexion";
       authLink.href = "#";
-      authLink.onclick = (e) => {
+      authLink.onclick = async (e) => {
         e.preventDefault();
         if (confirm("Voulez-vous vraiment vous déconnecter ?")) {
+          await logoutUser(); // Déconnexion Firebase
           write(STORAGE_KEYS.loggedUser, null);
           window.location.href = "index.html";
         }
@@ -218,7 +232,7 @@ function mapRegularProduct(item) {
 
   return {
     ...item,
-    id: item.id,
+    id: item.id, // L'ID vient maintenant de Firestore (ex: "7f8s7df8s")
     name: item.name || item.nom || "Produit",
     description: item.description || "",
     price: Number(item.price ?? item.prix ?? 0),
@@ -760,35 +774,41 @@ function renderProductCard(product, opts = {}) {
   `;
 }
 function getUsers() {
+  // Les utilisateurs sont gérés par Auth, on garde ça simple pour l'instant
   return read(STORAGE_KEYS.users, []);
 }
 
 function saveUsers(users) {
+  // Obsolète avec Firebase Auth, mais gardé pour compatibilité locale temporaire
   write(STORAGE_KEYS.users, users);
 }
 
 function getProducts() {
-  return read(STORAGE_KEYS.products, []);
+  // Retourne les produits qui NE SONT PAS d'occasion (donc boutiques)
+  return cachedProducts.filter(p => p.category !== 'Occasion');
 }
 
 function saveProducts(products) {
   write(STORAGE_KEYS.products, products);
+  // Cette fonction locale est remplacée par saveProductToFirestore
 }
 
 function getShops() {
-  return read(STORAGE_KEYS.shops, []);
+  return cachedShops;
 }
 
 function saveShops(shops) {
   write(STORAGE_KEYS.shops, shops);
+  // Remplacée par saveShopToFirestore
 }
 
 function getOccasionProducts() {
-  return read(STORAGE_KEYS.occasionProducts, []);
+  return cachedProducts.filter(p => p.category === 'Occasion');
 }
 
 function saveOccasionProducts(products) {
   write(STORAGE_KEYS.occasionProducts, products);
+  // Remplacée par saveOccasionProduct (déjà dans setupPublication)
 }
 
 function getMarketplaceProducts() {
@@ -801,7 +821,7 @@ function setupRegister() {
   const btn = document.getElementById("registerBtn");
   if (!btn) return;
 
-  btn.addEventListener("click", () => {
+  btn.addEventListener("click", async () => {
     const name = document.getElementById("name").value.trim();
     const email = document.getElementById("email").value.trim().toLowerCase();
     const password = document.getElementById("password").value;
@@ -825,27 +845,40 @@ function setupRegister() {
       return;
     }
 
-    const users = getUsers();
-    if (users.some((u) => u.email === email)) {
-      alert("Cet email exist déjà .");
-      return;
+    // FIREBASE REGISTER
+    try {
+      const firebaseUser = await registerUser(email, password);
+      
+      const userData = {
+        id: firebaseUser.uid, // On utilise l'ID Firebase
+        nom: name,
+        email: email,
+        // Pas de mot de passe stocké ici
+        numero_whatsapp: whatsapp,
+        type_compte: role,
+        photo_profil: "",
+        date_creation: new Date().toISOString()
+      };
+
+      await saveUserToFirestore(firebaseUser, userData);
+      
+      // On garde une copie locale pour que le reste du site fonctionne sans refonte totale
+      write(STORAGE_KEYS.loggedUser, userData);
+      
+      alert("Compte créé avec succès.");
+      if (role === "seller") {
+        window.location.href = "dashboard.html";
+      } else {
+        window.location.href = "home.html";
+      }
+    } catch (error) {
+      console.error(error);
+      if (error.code === 'auth/email-already-in-use') {
+        alert("Cet email est déjà utilisé.");
+      } else {
+        alert("Erreur lors de l'inscription : " + error.message);
+      }
     }
-
-    const user = {
-      id: uid("user"),
-      nom: name,
-      email,
-      mot_de_passe: password,
-      numero_whatsapp: whatsapp,
-      type_compte: role,
-      photo_profil: "",
-      date_creation: new Date().toISOString()
-    };
-
-    users.push(user);
-    saveUsers(users);
-    alert("Compte créé avec succès.");
-    window.location.href = "login.html";
   });
 }
 
@@ -853,25 +886,29 @@ function setupLogin() {
   const btn = document.getElementById("loginBtn");
   if (!btn) return;
 
-  btn.addEventListener("click", () => {
+  btn.addEventListener("click", async () => {
     const email = document.getElementById("email").value.trim().toLowerCase();
     const password = document.getElementById("password").value;
 
-    const user = getUsers().find(
-      (u) => u.email === email && u.mot_de_passe === password
-    );
+    try {
+      const firebaseUser = await loginUser(email, password);
+      const userData = await getUserFromFirestore(firebaseUser.uid);
 
-    if (!user) {
+      if (userData) {
+        write(STORAGE_KEYS.loggedUser, userData);
+        
+        if (userData.type_compte === "seller") {
+          window.location.href = "dashboard.html";
+        } else {
+          window.location.href = "home.html";
+        }
+      } else {
+        alert("Erreur : Impossible de récupérer les données utilisateur.");
+      }
+    } catch (error) {
+      console.error(error);
       alert("Email ou mot de passe incorrect.");
-      return;
     }
-
-    write(STORAGE_KEYS.loggedUser, user);
-    if (user.type_compte === "seller") {
-      window.location.href = "dashboard.html";
-      return;
-    }
-    window.location.href = "home.html";
   });
 }
 
@@ -932,12 +969,18 @@ function setupPasswordValidation() {
   });
 }
 
-function setupHome() {
+async function setupHome() {
   const container = document.getElementById("products");
   if (!container) return;
 
   const empty = document.getElementById("emptyProducts");
   const searchBtn = document.getElementById("searchBtn");
+
+  // S'assurer que les données sont à jour
+  await syncData();
+
+  // Charger les données à jour
+  await syncData();
 
   function render() {
     const q = (document.getElementById("searchInput").value || "").trim().toLowerCase();
@@ -981,7 +1024,7 @@ function requireSeller() {
   return user;
 }
 
-function setupDashboard() {
+async function setupDashboard() {
   const list = document.getElementById("productList");
   if (!list) return;
 
@@ -991,6 +1034,9 @@ function setupDashboard() {
   const addProductBtn = document.getElementById("addProductBtn");
   const saveShopBtn = document.getElementById("saveShopBtn");
   const empty = document.getElementById("emptySellerProducts");
+
+  // Charger les données à jour
+  await syncData();
 
   setupFilesPreview("imageFiles", "imagePreviewList");
   setupFilesPreview("shopLogoFile", "shopLogoPreview");
@@ -1014,8 +1060,7 @@ function setupDashboard() {
   }
 
   function renderSellerProducts() {
-    const products = getProducts()
-      .filter((p) => p.vendeur_id === user.id)
+    const products = getProducts().filter((p) => p.vendeur_id === user.id)
       .map(mapRegularProduct);
 
     list.innerHTML = products.map((p) => renderProductCard(p, { sellerActions: true })).join("");
@@ -1025,11 +1070,17 @@ function setupDashboard() {
       btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-id");
         const all = getProducts();
-        const target = all.find((p) => p.id === id && p.vendeur_id === user.id);
+        const target = all.find((p) => p.id === id);
         if (!target) return;
         target.status = target.status === "sold" ? "available" : "sold";
         saveProducts(all);
         renderSellerProducts();
+        
+        const newStatus = target.status === "sold" ? "available" : "sold";
+        updateProductFirestore(id, { status: newStatus }).then(async () => {
+            await syncData();
+            renderSellerProducts();
+        });
       });
     });
 
@@ -1041,6 +1092,10 @@ function setupDashboard() {
         const filtered = all.filter((p) => p.id !== id);
         saveProducts(filtered);
         renderSellerProducts();
+        deleteProductFirestore(id).then(async () => {
+            await syncData();
+            renderSellerProducts();
+        });
       });
     });
   }
@@ -1068,11 +1123,9 @@ function setupDashboard() {
     const logo = logoFromFile || logoFromUrl;
 
     const shops = getShops();
-    let shop = shops.find((s) => s.vendeur_id === user.id);
-
-    if (!shop) {
-      shop = {
-        id: uid("shop"),
+    // Gestion création/update boutique
+    let shop = getSellerShop();
+    const shopData = {
         nom,
         description,
         logo,
@@ -1080,18 +1133,15 @@ function setupDashboard() {
         contact_whatsapp: user.numero_whatsapp,
         lien_site
       };
-      shops.push(shop);
-    } else {
-      shop.nom = nom;
-      shop.description = description;
-      shop.logo = logo;
-      shop.lien_site = lien_site;
-      shop.contact_whatsapp = user.numero_whatsapp;
-    }
 
-    saveShops(shops);
-    renderUploadPreview("shopLogoPreview", logo ? [logo] : []);
-    alert("Boutique enregistrée.");
+    try {
+        await saveShopToFirestore(shopData, shop ? shop.id : null);
+        await syncData();
+        renderUploadPreview("shopLogoPreview", logo ? [logo] : []);
+        alert("Boutique enregistrée.");
+    } catch(e) {
+        alert("Erreur: " + e.message);
+    }
   });
 
   addProductBtn.addEventListener("click", async () => {
@@ -1124,9 +1174,8 @@ function setupDashboard() {
       return;
     }
 
-    const all = getProducts();
-    all.push({
-      id: uid("product"),
+    const productData = {
+      // id: généré par Firestore
       nom: name,
       name,
       description,
@@ -1142,26 +1191,31 @@ function setupDashboard() {
       shopId: shop.id,
       phone: user.numero_whatsapp,
       date_publication: new Date().toISOString(),
+      // date_publication gérée par createdAt
       status: "available"
-    });
+    };
 
-    saveProducts(all);
-    renderSellerProducts();
-    alert("Produit ajouté.");
-
-    // Vider le formulaire
-    document.getElementById("name").value = "";
-    document.getElementById("description").value = "";
-    document.getElementById("price").value = "";
-    document.getElementById("category").value = "TÃ©lÃ©phone";
-    resetFilesPreview("imageFiles", "imagePreviewList");
+    try {
+        await saveProductToFirestore(productData);
+        await syncData();
+        renderSellerProducts();
+        alert("Produit ajouté.");
+        // Vider le formulaire
+        document.getElementById("name").value = "";
+        document.getElementById("description").value = "";
+        document.getElementById("price").value = "";
+        document.getElementById("category").value = "Téléphone";
+        resetFilesPreview("imageFiles", "imagePreviewList");
+    } catch(e) {
+        alert("Erreur: " + e.message);
+    }
   });
 
   fillShopForm();
     renderSellerProducts();
 }
 
-function setupBoutiquePage() {
+async function setupBoutiquePage() {
   const container = document.getElementById("shopProducts");
   if (!container) return;
 
@@ -1171,6 +1225,8 @@ function setupBoutiquePage() {
   const searchBtn = document.getElementById("boutiqueSearchBtn");
   const params = new URLSearchParams(window.location.search);
   const shopId = params.get("shop");
+
+  await syncData();
 
   const shops = getShops();
   const products = getProducts().map(mapRegularProduct);
@@ -1261,7 +1317,7 @@ function setupBoutiquePage() {
   render();
 }
 
-function setupOccasionPage() {
+async function setupOccasionPage() {
   const page = document.body.dataset.page;
   if (page !== 'occasion' && page !== 'occasion-no-connexion') {
     return;
@@ -1326,49 +1382,73 @@ function setupPublication() {
       return;
     }
 
-    let images = [];
-    try {
-      images = await getImagesDataFromInput("occImageFiles");
-    } catch (error) {
-      alert(error.message);
-      return;
-    }
-    if (images.length === 0) {
+    // Récupération des fichiers directement depuis l'input
+    const fileInput = document.getElementById("occImageFiles");
+    const files = fileInput ? fileInput.files : [];
+
+    if (files.length === 0) {
       alert("Veuillez ajouter au moins une image.");
       return;
     }
 
-    const all = getOccasionProducts();
-    all.push({
-      id: uid("occasion"),
-      nom,
-      description,
-      prix,
-      category,
-      image: images[0],
-      images,
-      numero_whatsapp,
-      vendeur_id: user.id,
-      date_publication: new Date().toISOString(),
-      status: "available"
-    });
+    // Feedback utilisateur
+    publishBtn.textContent = "Publication en cours...";
+    publishBtn.disabled = true;
 
-    saveOccasionProducts(all);
-    alert("Annonce publiée avec succès.");
+    try {
+      // Upload des images vers Cloudinary
+      const imageUrls = [];
+      for (const file of files) {
+        const url = await uploadImageToCloudinary(file);
+        imageUrls.push(url);
+      }
 
-    // Vider le formulaire
-    document.getElementById("occName").value = "";
-    document.getElementById("occDescription").value = "";
-    document.getElementById("occPrice").value = "";
-    document.getElementById("occCategory").value = "Téléphone";
-    document.getElementById("occPhone").value = "";
-    resetFilesPreview("occImageFiles", "occImagePreviewList");
+      // Création de l'objet produit pour Firestore
+      const productData = {
+        name: nom,
+        nom: nom, // Doublon pour compatibilité
+        description: description,
+        price: prix,
+        category: "Occasion", // Catégorie principale pour le filtre
+        subCategory: category, // Catégorie spécifique (Téléphone, etc.)
+        imageUrl: imageUrls[0],
+        images: imageUrls,
+        phone: numero_whatsapp,
+        vendeur_id: user.id, // ID local ou UID Firebase selon votre système Auth
+        status: "available"
+      };
+
+      // Sauvegarde dans Firestore
+      await saveOccasionProduct(productData);
+
+      alert("Annonce publiée avec succès !");
+      
+      // Réinitialisation du formulaire
+      document.getElementById("occName").value = "";
+      document.getElementById("occDescription").value = "";
+      document.getElementById("occPrice").value = "";
+      document.getElementById("occCategory").value = "Téléphone";
+      document.getElementById("occPhone").value = "";
+      resetFilesPreview("occImageFiles", "occImagePreviewList");
+      
+      // Redirection vers la liste
+      window.location.href = "occasion.html";
+
+    } catch (error) {
+      console.error(error);
+      alert("Erreur lors de la publication : " + error.message);
+    } finally {
+      publishBtn.textContent = "Publier l'annonce";
+      publishBtn.disabled = false;
+    }
   });
 }
 
-function setupProductDetailPage() {
+async function setupProductDetailPage() {
   const page = document.body.dataset.page;
   if (page !== 'product') return;
+
+  await syncData();
 
   function findProduct() {
     const params = new URLSearchParams(window.location.search);
@@ -1693,7 +1773,7 @@ function setupProfilePage() {
   setupProfileImageModal();
 }
 
-function setupMyProducts() {
+async function setupMyProducts() {
   const container = document.getElementById("myProducts");
   const empty = document.getElementById("emptyMyProducts");
   
@@ -1702,6 +1782,8 @@ function setupMyProducts() {
   const user = currentUser();
   if (!user) return;
   
+  await syncData();
+
   function renderMyProducts() {
     const regular = getProducts().filter(p => p.vendeur_id === user.id).map(mapRegularProduct);
     const occasion = getOccasionProducts().filter(p => p.vendeur_id === user.id).map(mapOccasionToMarketplace);
@@ -1746,6 +1828,7 @@ function setupMyProducts() {
     container.querySelectorAll("button[data-action='delete-product']").forEach(btn => {
       btn.addEventListener("click", () => {
         if (!confirm("Voulez-vous vraiment supprimer ce produit ?")) return;
+        if (!confirm("Voulez-vous vraiment supprimer ce produit (irreversible) ?")) return;
         const id = btn.getAttribute("data-id");
         const origin = btn.getAttribute("data-origin");
 
@@ -1759,6 +1842,10 @@ function setupMyProducts() {
           saveProducts(filtered);
         }
         renderMyProducts();
+        deleteProductFirestore(id).then(async () => {
+            await syncData();
+            renderMyProducts();
+        });
       });
     });
   }
@@ -1803,10 +1890,12 @@ window.closeProfileImageModal = function() {
   }
 };
 
-function setupProfileImageModal() {
+async function setupProfileImageModal() {
   // Ajouter les événements click sur toutes les photos de profil
   const profileAvatars = document.querySelectorAll(".profile-avatar");
   const shopLogoDisplay = document.getElementById("shopLogoDisplay");
+
+  await syncData();
   
   profileAvatars.forEach(avatar => {
     avatar.addEventListener("click", (e) => {
@@ -1836,7 +1925,7 @@ function setupProfileImageModal() {
   });
 }
 
-function setupSellerShop() {
+async function setupSellerShop() {
   const user = currentUser();
   if (!user || user.type_compte !== "seller") return;
   
@@ -1966,7 +2055,7 @@ function setupSellerShop() {
 /* ===================================
    INITIALISATION PRINCIPALE
    =================================== */
-function bootstrap() {
+async function bootstrap() {
   const page = document.body.dataset.page;
   const user = currentUser();
 
@@ -2002,6 +2091,9 @@ function bootstrap() {
     }
   }
 
+  // Chargement global initial des données Firestore
+  await syncData();
+
   ensureMenu();
   updateAuthLink();
   setupRegister();
@@ -2021,8 +2113,3 @@ function bootstrap() {
 }
 
 document.addEventListener("DOMContentLoaded", bootstrap);
-
-
-
-
-
