@@ -66,7 +66,7 @@ body {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   pointer-events: none;
   z-index: 999;
 }
@@ -102,7 +102,7 @@ body {
   top: 0;
   right: -360px;
   width: 320px;
-  height: 100vh;
+  height: 100dvh;
   background: white;
   box-shadow: -6px 0 30px rgba(0, 0, 0, 0.2);
   z-index: 9999;
