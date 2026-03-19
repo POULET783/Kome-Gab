@@ -359,13 +359,13 @@ body {
 @media (max-width: 768px) {
   /* Panier mobile - pas d'animations */
   #smartWagon {
-    width: 100px;
-    right: 200px;
+    width: 100%;
+    right: -100%;
     transition: none; /* Retirer les animations pour Android */
   }
   
   #smartWagon.active {
-    right: 20px;
+    right: 0;
     transition: none; /* Retirer les animations pour Android */
   }
   
