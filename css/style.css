@@ -2237,3 +2237,22 @@ textarea:focus {
 .cart-float-btn:hover {
   box-shadow: none !important;
 }
+
+/* ===================================
+   FIX MOBILE RESPONSIVE
+   =================================== */
+body.cart-open {
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  #smartWagon {
+    width: 100%;
+    right: -100%;
+    transition: none;
+  }
+  
+  #smartWagon.active {
+    right: 0;
+  }
+}
