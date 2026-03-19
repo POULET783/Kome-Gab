@@ -27,26 +27,66 @@
   </nav>
 
   <main class="page">
-    <section class="panel form">
+
+    <!-- Section Boutique (pour les vendeurs) -->
+    <section class="panel" id="sellerShopSection" style="display: none;">
       <h2>Ma boutique</h2>
-      <label for="shopNameInput">Nom de boutique</label>
-      <input id="shopNameInput" placeholder="Ex: Tech Libreville">
+      
+      <div class="profile-avatar-wrap">
+        <div class="profile-image-container">
+          <img id="shopLogoDisplay" class="profile-avatar" src="https://placehold.co/160x160/ff6a00/ffffff?text=Boutique" alt="Logo de la boutique">
+          <label for="shopLogoFile" class="profile-edit-overlay"><i class="fa-solid fa-camera"></i>&nbsp;Modifier</label>
+        </div>
+        <input id="shopLogoFile" type="file" accept="image/*" style="display: none;">
+      </div>
 
-      <label for="shopDescriptionInput">Description</label>
-      <textarea id="shopDescriptionInput" rows="3" placeholder="Description de la boutique"></textarea>
+      <div class="form" id="shopForm">
+        <!-- View State -->
+        <div class="view-state">
+          <div class="info-item"><span class="info-label">Nom</span><p id="shopNameDisplay"></p></div>
+          <div class="info-item"><span class="info-label">Description</span><p id="shopDescriptionDisplay"></p></div>
+          <div class="info-item"><span class="info-label">Site web</span><a id="shopExternalLinkDisplay" href="#" target="_blank" rel="noopener"></a></div>
+          <div class="info-item"><span class="info-label">Horaires</span><p id="shopHoursDisplay"></p></div>
+          <button id="editShopBtn" type="button">Modifier</button>
+        </div>
 
-      <label for="shopLogoInput">Logo par URL</label>
-      <input id="shopLogoInput" placeholder="https://...">
+        <!-- Edit State -->
+        <div class="edit-state">
+          <label for="shopNameInput">Nom de la boutique</label>
+          <input id="shopNameInput" placeholder="Nom de votre boutique">
+          <label for="shopDescriptionInput">Description</label>
+          <textarea id="shopDescriptionInput" placeholder="Description de votre boutique" rows="3"></textarea>
+          <label for="shopLogoInput">URL du logo</label>
+          <input id="shopLogoInput" placeholder="https://example.com/logo.png">
+          <label for="shopExternalLinkInput">Lien site externe (optionnel)</label>
+          <input id="shopExternalLinkInput" placeholder="https://example.com">
+          <label for="shopHoursInput">Horaires d'ouverture</label>
+          <textarea id="shopHoursInput" placeholder="ex: Lundi - Samedi : 08h - 18h" rows="2"></textarea>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div>
+              <label for="shopOpenTimeInput" style="font-size: 0.85rem;">Heure d'ouverture (Auto)</label>
+              <input type="time" id="shopOpenTimeInput">
+            </div>
+            <div>
+              <label for="shopCloseTimeInput" style="font-size: 0.85rem;">Heure de fermeture (Auto)</label>
+              <input type="time" id="shopCloseTimeInput">
+            </div>
+          </div>
+          <h3>Contacts supplémentaires</h3>
+          <div id="additionalContacts">
+            <div class="contact-item">
+              <input type="email" placeholder="Email additionnel" class="additional-email">
+              <input type="tel" placeholder="WhatsApp additionnel" class="additional-whatsapp">
+              <button type="button" class="remove-contact-btn">Supprimer</button>
+            </div>
+          </div>
+          <button type="button" id="addContactBtn">Ajouter un contact</button>
+          <button id="saveShopBtn" type="button">Enregistrer la boutique</button>
+          <button id="cancelShopBtn" type="button" class="secondary">Annuler</button>
+        </div>
 
-      <label for="shopLogoFile">Ou logo depuis vos dossiers</label>
-      <input id="shopLogoFile" type="file" accept="image/*">
-      <p class="small">Choisissez soit une URL, soit un fichier perso (le fichier est prioritaire).</p>
-      <div id="shopLogoPreview" class="preview-grid"></div>
-
-      <label for="shopExternalLinkInput">Lien site externe (optionnel)</label>
-      <input id="shopExternalLinkInput" placeholder="https://monsite.com">
-
-      <button id="saveShopBtn">Créer / Mettre à jour la boutique</button>
+        <button id="deleteShopBtn" type="button" style="background: var(--danger); margin-top: 15px;">Supprimer ma boutique</button>
+      </div>
     </section>
 
     <section class="panel form">
@@ -84,11 +124,15 @@
     </section>
   </main>
 
+  <!-- Modal Liste des abonnés -->
+  <div id="followersModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <h3>Mes Abonnés</h3>
+      <div id="followersList" class="followers-list">Chargement...</div>
+    </div>
+  </div>
+
   <script type="module" src="js/script.js"></script>
 </body>
 </html>
-
-
-
-
-

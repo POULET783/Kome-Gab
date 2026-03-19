@@ -17,7 +17,7 @@ const firebaseConfig = {
 };
 
 // Configuration Cloudinary
-const CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dzvvkr5kv/image/upload";
+const CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dzvvkr5kv/auto/upload"; // Changé 'image' par 'auto' pour supporter les vidéos
 const CLOUDINARY_UPLOAD_PRESET = "komegab-preset"; // Créer un "unsigned preset" dans Cloudinary
 
 // Initialisation de Firebase
@@ -122,17 +122,35 @@ export const getUserFromFirestore = async (uid) => {
   }
 };
 
+/**
+ * Récupère les données de plusieurs utilisateurs par leurs IDs
+ */
+export const getUsersByIds = async (ids) => {
+  if (!ids || ids.length === 0) return [];
+  try {
+    // On récupère chaque utilisateur individuellement
+    const promises = ids.map(id => getDoc(doc(db, "users", id)));
+    const snapshots = await Promise.all(promises);
+    return snapshots.map(snap => snap.exists() ? snap.data() : null).filter(u => u !== null);
+  } catch (error) {
+    console.error("Erreur getUsersByIds:", error);
+    return [];
+  }
+};
+
 // --- 2. CLOUDINARY UPLOAD ---
 
 /**
  * Upload une image vers Cloudinary
  * @param {File} file - L'objet File provenant d'un input type="file"
- * @returns {Promise<string>} - L'URL de l'image uploadée
+ * @returns {Promise<object>} - L'objet contenant l'URL et le type (image/video)
  */
-export const uploadImageToCloudinary = async (file) => {
+export const uploadMediaToCloudinary = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  // force le resource_type à auto pour détecter image ou video
+  formData.append('resource_type', 'auto'); 
 
   try {
     const response = await fetch(CLOUDINARY_URL, {
@@ -140,11 +158,21 @@ export const uploadImageToCloudinary = async (file) => {
       body: formData
     });
     const data = await response.json();
-    return data.secure_url;
+    // On retourne l'url sécurisée et le type (image ou video)
+    return { 
+      url: data.secure_url, 
+      type: data.resource_type // 'image' ou 'video'
+    };
   } catch (error) {
     console.error("Erreur upload Cloudinary:", error);
     throw error;
   }
+};
+
+// Garder la compatibilité pour l'ancien nom de fonction, mais utilise la nouvelle logique
+export const uploadImageToCloudinary = async (file) => {
+  const res = await uploadMediaToCloudinary(file);
+  return res.url;
 };
 
 // Fonction pour sauvegarder une annonce dans Firestore
@@ -292,6 +320,69 @@ export const updateUserInFirestore = async (uid, data) => {
       updatedAt: new Date().toISOString()
     });
   } catch (error) { console.error("Erreur update user:", error); throw error; }
+};
+
+// --- 3. GESTION DES STORIES ---
+
+export const saveStory = async (storyData) => {
+  try {
+    await addDoc(collection(db, "stories"), {
+      ...storyData,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Expire dans 24h
+    });
+  } catch (error) { console.error("Erreur save story:", error); throw error; }
+};
+
+export const getActiveStories = async () => {
+  try {
+    const now = new Date().toISOString();
+    // On récupère les stories dont la date d'expiration est future
+    const q = query(collection(db, "stories"), where("expiresAt", ">", now), orderBy("expiresAt", "asc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) { console.error("Erreur get stories:", error); return []; }
+};
+
+// --- 4. GESTION DES VIDEOS COURTES (SHORTS) ---
+
+export const saveShortVideo = async (videoData) => {
+  try {
+    await addDoc(collection(db, "short_videos"), {
+      ...videoData,
+      createdAt: new Date().toISOString()
+    });
+  } catch (error) { console.error("Erreur save video:", error); throw error; }
+};
+
+export const getShortVideos = async () => {
+  try {
+    const q = query(collection(db, "short_videos"), orderBy("createdAt", "desc"), limit(20));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) { console.error("Erreur get videos:", error); return []; }
+};
+
+/**
+ * Toggle Like pour une vidéo (Ajoute/Retire l'ID utilisateur du tableau 'likes' de la vidéo)
+ */
+export const toggleVideoLike = async (videoId, userId) => {
+  const videoRef = doc(db, "short_videos", videoId);
+  try {
+    await runTransaction(db, async (transaction) => {
+      const videoDoc = await transaction.get(videoRef);
+      if (!videoDoc.exists()) throw "Video not found";
+      
+      const data = videoDoc.data();
+      const likes = data.likes || [];
+      
+      const newLikes = likes.includes(userId) 
+        ? likes.filter(id => id !== userId) 
+        : [...likes, userId];
+        
+      transaction.update(videoRef, { likes: newLikes });
+    });
+  } catch (e) { console.error("Erreur toggle video like:", e); throw e; }
 };
 
 // --- 3. FIRESTORE (Affichage des produits) ---

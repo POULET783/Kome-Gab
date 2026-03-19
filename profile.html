@@ -17,6 +17,7 @@
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
     <a href="index.html">Accueil</a>
+    <a href="videos.html">Vidéos</a>
     <a href="occasion.html">Occasion</a>
     <a href="boutique.html">Boutiques</a>
     <a href="publication.html">Publication</a>
@@ -36,81 +37,43 @@
         <input id="profilePhotoFile" type="file" accept="image/*" style="display: none;">
       </div>
 
-      <div class="form">
-        <label for="profileNameInput">Nom d'utilisateur</label>
-        <input id="profileNameInput" placeholder="Votre nom">
+      <div class="form" id="profileForm">
+        <!-- View State -->
+        <div class="view-state">
+          <div class="info-item"><span class="info-label">Nom</span><p id="profileNameDisplay"></p></div>
+          <div class="info-item"><span class="info-label">WhatsApp</span><p id="profilePhoneDisplay"></p></div>
+          <div class="info-item"><span class="info-label">Email</span><p id="profileEmail"></p></div>
+          <div class="info-item"><span class="info-label">Type</span><p id="profileRole"></p></div>
+          <button id="editProfileBtn" type="button">Modifier</button>
+        </div>
 
-        <label for="profilePhoneInput">Téléphone (WhatsApp)</label>
-        <input id="profilePhoneInput" placeholder="241XXXXXXXX">
+        <!-- Edit State -->
+        <div class="edit-state">
+          <label for="profileNameInput">Nom d'utilisateur</label>
+          <input id="profileNameInput" placeholder="Votre nom">
+          <label for="profilePhoneInput">Téléphone (WhatsApp)</label>
+          <input id="profilePhoneInput" placeholder="241XXXXXXXX">
+          <button id="saveProfileBtn" type="button">Enregistrer</button>
+          <button id="cancelProfileBtn" type="button" class="secondary">Annuler</button>
+        </div>
 
-        <p class="meta">Email: <span id="profileEmail">-</span></p>
-        <p class="meta">Type de compte: <span id="profileRole">-</span></p>
-
-        <button id="saveProfileBtn" type="button">Enregistrer le profil</button>
         <button id="deleteAccountBtn" type="button" style="background: var(--danger); margin-top: 15px;">Supprimer mon compte</button>
       </div>
     </section>
 
     <!-- Section Mes produits -->
+    <!-- <section class="panel">
+      <h2>Mes produits</h2>
+      <div id="myProducts" class="cards"></div>
+      <p id="emptyMyProducts" class="empty">Vous n'avez pas encore publié de produits.</p>
+    </section> -->
+
     <section class="panel">
       <h2>Mes produits</h2>
       <div id="myProducts" class="cards"></div>
       <p id="emptyMyProducts" class="empty">Vous n'avez pas encore publié de produits.</p>
     </section>
-
-    <!-- Section Boutique (pour les vendeurs) -->
-    <section class="panel" id="sellerShopSection" style="display: none;">
-      <h2>Ma boutique</h2>
-      
-      <div class="profile-avatar-wrap">
-        <div class="profile-image-container">
-          <img id="shopLogoDisplay" class="profile-avatar" src="https://placehold.co/160x160/ff6a00/ffffff?text=Boutique" alt="Logo de la boutique">
-          <label for="shopLogoFile" class="profile-edit-overlay"><i class="fa-solid fa-camera"></i>&nbsp;Modifier</label>
-        </div>
-        <input id="shopLogoFile" type="file" accept="image/*" style="display: none;">
-      </div>
-
-      <div class="form">
-        <label for="shopNameInput">Nom de la boutique</label>
-        <input id="shopNameInput" placeholder="Nom de votre boutique">
-
-        <label for="shopDescriptionInput">Description</label>
-        <textarea id="shopDescriptionInput" placeholder="Description de votre boutique" rows="3"></textarea>
-
-        <label for="shopLogoInput">URL du logo</label>
-        <input id="shopLogoInput" placeholder="https://example.com/logo.png">
-
-        <label for="shopExternalLinkInput">Lien site externe (optionnel)</label>
-        <input id="shopExternalLinkInput" placeholder="https://example.com">
-
-        <label for="shopHoursInput">Horaires d'ouverture</label>
-        <textarea id="shopHoursInput" placeholder="ex: Lundi - Samedi : 08h - 18h" rows="2"></textarea>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-          <div>
-            <label for="shopOpenTimeInput" style="font-size: 0.85rem;">Heure d'ouverture (Auto)</label>
-            <input type="time" id="shopOpenTimeInput">
-          </div>
-          <div>
-            <label for="shopCloseTimeInput" style="font-size: 0.85rem;">Heure de fermeture (Auto)</label>
-            <input type="time" id="shopCloseTimeInput">
-          </div>
-        </div>
-
-        <h3>Contacts supplémentaires</h3>
-        <div id="additionalContacts">
-          <div class="contact-item">
-            <input type="email" placeholder="Email additionnel" class="additional-email">
-            <input type="tel" placeholder="WhatsApp additionnel" class="additional-whatsapp">
-            <button type="button" class="remove-contact-btn">Supprimer</button>
-          </div>
-        </div>
-        <button type="button" id="addContactBtn">Ajouter un contact</button>
-
-        <button id="saveShopBtn" type="button">Enregistrer la boutique</button>
-        <button id="deleteShopBtn" type="button" style="background: var(--danger); margin-top: 15px;">Supprimer ma boutique</button>
-      </div>
-    </section>
+    
   </main>
 
   <!-- Modal pour afficher les photos de profil en grand -->

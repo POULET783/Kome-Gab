@@ -19,6 +19,7 @@
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
     <a href="index.html">Accueil</a>
+    <a href="videos.html">Vidéos</a>
     <a href="occasion.html">Occasion</a>
     <a href="boutique.html">Boutiques</a>
     <a href="publication.html">Publication</a>
@@ -27,6 +28,7 @@
   </nav>
 
   <main class="page">
+
     <section class="panel amazon-search-panel">
       <h2>Marketplace Kome-Gab</h2>
       <div class="filters">
@@ -52,6 +54,11 @@
       </div>
     </section>
 
+    <!-- BARRE DE STORIES -->
+    <section class="panel stories-panel">
+      <div id="storiesContainer" class="stories-wrapper"></div>
+    </section>
+
     <section class="panel">
       <h3>Produits disponibles</h3>
       <div id="products" class="cards"></div>
@@ -61,6 +68,30 @@
 
   <!-- Inclure le panier latéral -->
   <div id="cartSidebarContainer"></div>
+
+  <!-- MODALE UPLOAD STORY -->
+  <div id="storyUploadModal" class="modal">
+    <div class="modal-content" style="max-width: 350px; text-align: center;">
+      <span class="close-modal">&times;</span>
+      <h3>Créer une story</h3>
+      <input type="file" id="storyFileInput" accept="image/*,video/*" style="display:none;">
+      
+      <div id="storyPreviewArea" style="margin: 15px 0; min-height: 200px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 8px; overflow: hidden;">
+        <p class="meta" id="storyPlaceholderText">Cliquez pour ajouter une photo ou vidéo</p>
+      </div>
+
+      <button id="triggerStoryFileBtn" class="secondary" style="margin-bottom: 10px;">Choisir un fichier</button>
+      <button id="publishStoryBtn" disabled>Publier la story</button>
+    </div>
+  </div>
+
+  <!-- MODALE VISIONNEUSE STORY (FULLSCREEN) -->
+  <div id="storyViewerModal" class="story-viewer-modal">
+    <button class="close-story-viewer">&times;</button>
+    <div class="story-progress-bar"><div class="story-progress-fill" id="storyProgress"></div></div>
+    <div id="storyContentContainer" class="story-content-container"></div>
+    <div class="story-user-info" id="storyUserInfo"></div>
+  </div>
 
   <script type="module" src="js/script.js"></script>
 </body>

@@ -1,7 +1,11 @@
 // Script.js
 
 // Import des fonctions Firebase et Cloudinary
-import { uploadImageToCloudinary, saveOccasionProduct, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, logoutUser, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, updateUserInFirestore, saveReview, getReviews, toggleShopFollow } from '../firebase-app.js';
+import {
+  logoutUser, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, getUsersByIds,
+  uploadMediaToCloudinary, uploadImageToCloudinary, saveOccasionProduct, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, toggleShopFollow, saveReview, getReviews, updateUserInFirestore, saveStory, getActiveStories,
+  saveShortVideo, getShortVideos, toggleVideoLike
+} from "../firebase-app.js";
 
 const STORAGE_KEYS = {
   users: "mg_users",
@@ -90,14 +94,6 @@ function updateAuthLink() {
     if (logged) {
       // Récupérer la photo de profil ou le logo de la boutique
       let profileImage = logged.photo_profil;
-      
-      if (logged.type_compte === "seller") {
-        const shops = getShops();
-        const shop = shops.find(s => s.vendeur_id === logged.id);
-        if (shop && shop.logo) {
-          profileImage = shop.logo;
-        }
-      }
       
       // Utiliser l'image trouvée ou un avatar par défaut si vide/placeholder
       if (profileImage && !profileImage.includes("placehold.co")) {
@@ -686,6 +682,30 @@ async function toggleLike(id, type) {
     return;
   }
 
+  // Cas spécifique pour les vidéos (stocké dans le document vidéo, pas user)
+  if (type === 'video') {
+    try {
+      // Update UI optimiste
+      const btn = document.querySelector(`.like-btn[data-id="${id}"][data-type="video"]`);
+      const countEl = document.querySelector(`.video-like-count[data-id="${id}"]`);
+      
+      if (btn) {
+        const isNowActive = btn.classList.toggle("active");
+        if (countEl) {
+          let count = parseInt(countEl.textContent || "0");
+          countEl.textContent = isNowActive ? count + 1 : Math.max(0, count - 1);
+        }
+      }
+
+      await toggleVideoLike(id, user.id);
+      // On ne recharge pas toute la liste pour ne pas couper la vidéo en cours
+    } catch (error) {
+      console.error("Erreur like vidéo:", error);
+      alert("Erreur lors du like.");
+    }
+    return;
+  }
+
   const field = type === 'product' ? 'likedProducts' : 'favoriteShops';
   
   let list = user[field] || [];
@@ -721,6 +741,320 @@ async function toggleLike(id, type) {
     console.error("Erreur sauvegarde like:", error);
     alert("Erreur lors de la mise à jour des favoris.");
   }
+}
+
+/* ===================================
+   GESTION DES STORIES
+   =================================== */
+async function setupStories() {
+  const container = document.getElementById("storiesContainer");
+  if (!container) return;
+
+  const user = currentUser();
+  
+  // Récupérer les stories actives depuis Firebase
+  const stories = await getActiveStories();
+  
+  // Regrouper les stories par utilisateur (userId)
+  const storiesByUser = {};
+
+  stories.forEach(story => {
+    if (!storiesByUser[story.userId]) {
+      storiesByUser[story.userId] = {
+        userName: story.userName,
+        userAvatar: story.userAvatar,
+        stories: []
+      };
+    }
+    storiesByUser[story.userId].stories.push(story);
+  });
+
+  // Séparer "Mes stories" des autres
+  let myStories = [];
+  if (user && storiesByUser[user.id]) {
+    myStories = storiesByUser[user.id].stories;
+    // Trier les stories de la plus récente à la plus ancienne pour trouver la dernière
+    myStories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    delete storiesByUser[user.id]; // On retire pour ne pas l'afficher deux fois
+  }
+
+  // --- GENERATION HTML ---
+  let myStoryHtml = '';
+  // Si l'utilisateur a des stories, préparer le cercle "Ma Story"
+  if (myStories.length > 0) {
+    const latestStory = myStories[0];
+    
+    // Utiliser la photo de la dernière story. Si c'est une vidéo, on tente de générer une miniature (Cloudinary .jpg)
+    let storyThumbnail = user?.photo_profil || 'https://ui-avatars.com/api/?name=Me&background=eee&color=333';
+    
+    if (latestStory.mediaType === 'image') {
+      storyThumbnail = latestStory.mediaUrl;
+    } else if (latestStory.mediaType === 'video') {
+      // Astuce pour Cloudinary : changer l'extension vidéo par .jpg pour avoir la miniature
+      storyThumbnail = latestStory.mediaUrl.replace(/\.[^/.]+$/, ".jpg");
+    }
+
+    myStoryHtml = `
+      <div class="story-item" id="myStoryBtn">
+        <div class="story-ring">
+          <img src="${storyThumbnail}" class="story-img" alt="Ma Story">
+        </div>
+        <span class="story-name">Ma Story</span>
+      </div>
+    `;
+  }
+
+  // Toujours afficher le bouton "Créer story"
+  const createStoryHtml = `
+    <div class="story-item create" id="addStoryBtn">
+      <div class="story-ring">
+        <img src="${user?.photo_profil || 'https://ui-avatars.com/api/?name=Me&background=eee&color=333'}" class="story-img" alt="Moi">
+        <div class="story-badge-plus">+</div>
+      </div>
+      <span class="story-name">Créer story</span>
+    </div>
+  `;
+ 
+  let otherStoriesHtml = '';
+  // Afficher les stories des autres utilisateurs
+  Object.keys(storiesByUser).forEach(userId => {
+    const group = storiesByUser[userId];
+    const img = group.userAvatar || "https://placehold.co/100x100";
+    
+    otherStoriesHtml += `
+      <div class="story-item view-story" data-userid="${userId}">
+        <div class="story-ring">
+          <img src="${img}" class="story-img" alt="${group.userName}">
+        </div>
+        <span class="story-name">${group.userName}</span>
+      </div>
+    `;
+  });
+  
+  // Assembler le tout: Créer, Ma Story (si elle existe), puis les autres
+  container.innerHTML = `<div class="stories-wrapper">${createStoryHtml}${myStoryHtml}${otherStoriesHtml}</div>`;
+
+  // 1. Clic sur "Créer story"
+  const addStoryBtn = document.getElementById("addStoryBtn");
+  if (addStoryBtn) {
+    addStoryBtn.addEventListener("click", () => {
+      if (!user) return window.location.href = 'login.html';
+      
+      // Si j'ai déjà des stories, on ouvre le viewer, sinon l'uploader
+      openStoryUploader(); // Ouvre toujours l'uploader
+    });
+  }
+
+  // 2. Clic sur "Ma Story" (s'il existe)
+  const myStoryBtn = document.getElementById("myStoryBtn");
+  if (myStoryBtn) {
+    myStoryBtn.addEventListener("click", () => {
+      if (myStories.length > 0) {
+        openStoryViewer(myStories, user);
+      } else {
+        openStoryUploader();
+      }
+    });
+  }
+
+  // 3. Clic sur les autres stories
+  container.querySelectorAll(".view-story").forEach(el => {
+    el.addEventListener("click", () => {
+      const userId = el.dataset.userid;
+      const group = storiesByUser[userId];
+      if (group && group.stories.length > 0) {
+        openStoryViewer(group.stories, { nom: group.userName, photo_profil: group.userAvatar });
+      }
+    });
+  });
+}
+
+// --- LOGIQUE UPLOAD STORY ---
+function openStoryUploader() {
+  const modal = document.getElementById("storyUploadModal");
+  const fileInput = document.getElementById("storyFileInput");
+  const previewArea = document.getElementById("storyPreviewArea");
+  const triggerBtn = document.getElementById("triggerStoryFileBtn");
+  const publishBtn = document.getElementById("publishStoryBtn");
+  const closeBtn = modal.querySelector(".close-modal");
+  let selectedFile = null;
+
+  modal.classList.add("active");
+
+  // Reset
+  fileInput.value = "";
+  previewArea.innerHTML = '<p class="meta">Cliquez pour ajouter une photo ou vidéo</p>';
+  publishBtn.disabled = true;
+  publishBtn.textContent = "Publier la story";
+
+  // Close events
+  const closeModal = () => modal.classList.remove("active");
+  closeBtn.onclick = closeModal;
+  // Click outside to close (optional, maybe annoying if uploading)
+  
+  // Trigger file select
+  triggerBtn.onclick = () => fileInput.click();
+  previewArea.onclick = () => fileInput.click();
+
+  // File Selected
+  fileInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) {
+      publishBtn.disabled = true;
+      return;
+    }
+
+    selectedFile = file;
+    publishBtn.disabled = true; // Désactiver par défaut
+
+    const objectUrl = URL.createObjectURL(file);
+    if (file.type.startsWith("image/")) {
+      previewArea.innerHTML = `<img src="${objectUrl}" style="max-width:100%; max-height:300px;">`;
+      publishBtn.disabled = false; // Activer pour les images
+    } else if (file.type.startsWith("video/")) {
+      // Vérifier la durée de la vidéo
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = function() {
+        window.URL.revokeObjectURL(video.src); // Libérer la mémoire
+        if (video.duration > 60) {
+          alert("La vidéo ne doit pas dépasser 60 secondes.");
+          fileInput.value = ""; // Vider la sélection
+          selectedFile = null;
+          previewArea.innerHTML = '<p class="meta">Cliquez pour ajouter une photo ou vidéo</p>';
+        } else {
+          previewArea.innerHTML = `<video src="${objectUrl}" controls style="max-width:100%; max-height:300px;"></video>`;
+          publishBtn.disabled = false; // Activer si la durée est OK
+        }
+      };
+      video.src = objectUrl;
+    }
+  };
+
+  // Publish
+  publishBtn.onclick = async () => {
+    if (!selectedFile) return;
+    const user = currentUser();
+    
+    publishBtn.disabled = true;
+    publishBtn.textContent = "Envoi en cours (patience)...";
+
+    try {
+      // 1. Upload Cloudinary (Video ou Image)
+      const mediaData = await uploadMediaToCloudinary(selectedFile);
+
+      // 2. Save to Firestore
+      await saveStory({
+        userId: user.id,
+        userName: user.nom || "Utilisateur",
+        userAvatar: user.photo_profil || "",
+        mediaUrl: mediaData.url,
+        mediaType: mediaData.type // 'image' ou 'video'
+      });
+
+      alert("Story publiée !");
+      closeModal();
+      setupStories(); // Refresh list
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors de la publication.");
+      publishBtn.disabled = false;
+      publishBtn.textContent = "Réessayer";
+    }
+  };
+}
+
+// --- LOGIQUE VIEWER STORY ---
+let currentStoryTimer = null;
+
+function openStoryViewer(stories, userContext) {
+  const modal = document.getElementById("storyViewerModal");
+  const contentContainer = document.getElementById("storyContentContainer");
+  const progressBar = document.getElementById("storyProgress");
+  const userInfo = document.getElementById("storyUserInfo");
+  const closeBtn = modal.querySelector(".close-story-viewer");
+
+  let currentIndex = 0;
+  modal.classList.add("active");
+
+  // Setup User Info Header
+  userInfo.innerHTML = `
+    <img src="${userContext.photo_profil || "https://placehold.co/50x50"}" style="width:32px; height:32px; border-radius:50%;">
+    <span>${userContext.nom}</span>
+  `;
+
+  const closeViewer = () => {
+    modal.classList.remove("active");
+    contentContainer.innerHTML = "";
+    if (currentStoryTimer) clearTimeout(currentStoryTimer);
+  };
+
+  closeBtn.onclick = closeViewer;
+
+  const showStory = (index) => {
+    if (index >= stories.length) {
+      closeViewer();
+      return;
+    }
+    if (index < 0) index = 0;
+    currentIndex = index;
+
+    const story = stories[index];
+    contentContainer.innerHTML = ""; // Clear previous
+    progressBar.style.width = "0%";
+    if (currentStoryTimer) clearTimeout(currentStoryTimer);
+
+    // Create Element
+    let mediaEl;
+    if (story.mediaType === "video") {
+      mediaEl = document.createElement("video");
+      mediaEl.src = story.mediaUrl;
+      mediaEl.autoplay = true;
+      mediaEl.className = "story-media";
+      // Mobile autoplay often requires muted
+      // mediaEl.muted = false; // User has to unmute usually or we rely on interaction
+      
+      mediaEl.onloadedmetadata = () => {
+        const duration = mediaEl.duration * 1000;
+        startProgress(duration);
+      };
+      mediaEl.onended = () => showStory(currentIndex + 1);
+    } else {
+      mediaEl = document.createElement("img");
+      mediaEl.src = story.mediaUrl;
+      mediaEl.className = "story-media";
+      startProgress(5000); // 5 seconds for images
+    }
+
+    contentContainer.appendChild(mediaEl);
+
+    // Navigation Tap zones
+    mediaEl.addEventListener("click", (e) => {
+      const width = window.innerWidth;
+      if (e.clientX < width / 3) {
+        showStory(currentIndex - 1); // Prev
+      } else {
+        showStory(currentIndex + 1); // Next
+      }
+    });
+  };
+
+  const startProgress = (duration) => {
+    progressBar.style.transition = "none";
+    progressBar.style.width = "0%";
+    // Force reflow
+    void progressBar.offsetWidth;
+    progressBar.style.transition = `width ${duration}ms linear`;
+    progressBar.style.width = "100%";
+
+    if (stories[currentIndex].mediaType !== "video") {
+        currentStoryTimer = setTimeout(() => {
+            showStory(currentIndex + 1);
+        }, duration);
+    }
+  };
+
+  showStory(0);
 }
 
 function bindAddToCartButtons(root) {
@@ -805,10 +1139,6 @@ function renderProductCard(product, opts = {}) {
     ? `<a class="shop-snippet" href="boutique.html?shop=${encodeURIComponent(shop.id)}"><img src="${shop.logo || "https://placehold.co/50x50/ff6a00/ffffff?text=K"}" alt="${shop.nom}"><span>${shop.nom}</span></a>`
     : "";
 
-  const sourceAction = normalized.isOccasion
-    ? `<a class="link-btn secondary" href="occasion.html">Annonce occasion</a>`
-    : `<a class="link-btn secondary" href="boutique.html${shopParam}">Boutique</a>`;
-
   const cartAction = !normalized.isOccasion
     ? `<button class="secondary" data-action="add-cart" data-id="${normalized.id}" type="button">Ajouter au panier</button>`
     : "";
@@ -840,8 +1170,6 @@ function renderProductCard(product, opts = {}) {
         <p class="meta clamp-two">${normalized.description || "Sans description"}</p>
         <div class="row-actions">
           <a class="link-btn" href="${whatsappHref}" target="_blank" rel="noopener">Commander</a>
-          <a class="link-btn secondary" href="${galleryUrl}">Galerie</a>
-          ${sourceAction}
           ${cartAction}
           ${opts.sellerActions ? `
             <button class="warning" data-action="toggle-sold" data-id="${normalized.id}">${isSold ? "Remettre disponible" : "Marquer vendu"}</button>
@@ -1058,9 +1386,6 @@ async function setupHome() {
   // S'assurer que les données sont à jour
   await syncData();
 
-  // Charger les données à jour
-  await syncData();
-
   function render() {
     const q = (document.getElementById("searchInput").value || "").trim().toLowerCase();
     const category = document.getElementById("categoryFilter").value;
@@ -1096,7 +1421,7 @@ async function setupHome() {
 function requireSeller() {
   const user = currentUser();
   if (!user || user.type_compte !== "seller") {
-    alert("AccÃ¨s vendeur requis.");
+    alert("Compte vendeur requis.");
     window.location.href = "login.html";
     return null;
   }
@@ -1111,33 +1436,15 @@ async function setupDashboard() {
   if (!user) return;
 
   const addProductBtn = document.getElementById("addProductBtn");
-  const saveShopBtn = document.getElementById("saveShopBtn");
   const empty = document.getElementById("emptySellerProducts");
 
   // Charger les données à jour
   await syncData();
 
   setupFilesPreview("imageFiles", "imagePreviewList");
-  setupFilesPreview("shopLogoFile", "shopLogoPreview");
 
   function getSellerShop() {
     return getShops().find((s) => s.vendeur_id === user.id) || null;
-  }
-
-  function fillShopForm() {
-    const shop = getSellerShop();
-    if (!shop) {
-      renderUploadPreview("shopLogoPreview", []);
-    return;
-  }
-
-    document.getElementById("shopNameInput").value = shop.nom || "";
-    document.getElementById("shopDescriptionInput").value = shop.description || "";
-    document.getElementById("shopLogoInput").value = shop.logo || "";
-    document.getElementById("shopExternalLinkInput").value = shop.lien_site || "";
-    const hoursInput = document.getElementById("shopHoursInput");
-    if (hoursInput) hoursInput.value = shop.horaires || "";
-    renderUploadPreview("shopLogoPreview", shop.logo ? [shop.logo] : []);
   }
 
   function renderSellerProducts() {
@@ -1180,52 +1487,6 @@ async function setupDashboard() {
       });
     });
   }
-
-  saveShopBtn.addEventListener("click", async () => {
-    const nom = document.getElementById("shopNameInput").value.trim();
-    const description = document.getElementById("shopDescriptionInput").value.trim();
-    const logoFromUrl = document.getElementById("shopLogoInput").value.trim();
-    const lien_site = document.getElementById("shopExternalLinkInput").value.trim();
-    const horaires = document.getElementById("shopHoursInput")?.value.trim() || null;
-
-    if (!nom) {
-      alert("Le nom de la boutique est obligatoire.");
-      return;
-    }
-
-    let logoFromFile = "";
-    try {
-      const logos = await getImagesDataFromInput("shopLogoFile");
-      logoFromFile = logos[0] || "";
-    } catch (error) {
-      alert(error.message);
-      return;
-    }
-
-    const logo = logoFromFile || logoFromUrl;
-
-    const shops = getShops();
-    // Gestion création/update boutique
-    let shop = getSellerShop();
-    const shopData = {
-        nom,
-        description,
-        logo,
-        vendeur_id: user.id,
-        contact_whatsapp: user.numero_whatsapp,
-        lien_site,
-        horaires
-      };
-
-    try {
-        await saveShopToFirestore(shopData, shop ? shop.id : null);
-        await syncData();
-        renderUploadPreview("shopLogoPreview", logo ? [logo] : []);
-        alert("Boutique enregistrée.");
-    } catch(e) {
-        alert("Erreur: " + e.message);
-    }
-  });
 
   addProductBtn.addEventListener("click", async () => {
     const name = document.getElementById("name").value.trim();
@@ -1279,6 +1540,22 @@ async function setupDashboard() {
     };
 
     try {
+        // NOUVEAU: Proposer de publier en story
+        if (confirm("Voulez-vous également publier la première photo de ce produit dans votre story ?")) {
+            try {
+                await saveStory({
+                    userId: user.id,
+                    userName: user.nom || "Utilisateur",
+                    userAvatar: user.photo_profil || "",
+                    mediaUrl: productData.image, // L'URL de la première image
+                    mediaType: 'image'
+                });
+            } catch (storyError) {
+                console.error("Erreur lors de la publication de la story:", storyError);
+                // Pas d'alerte pour ne pas gêner
+            }
+        }
+
         await saveProductToFirestore(productData);
         await syncData();
         renderSellerProducts();
@@ -1294,7 +1571,6 @@ async function setupDashboard() {
     }
   });
 
-  fillShopForm();
     renderSellerProducts();
 }
 
@@ -1498,6 +1774,23 @@ function setupPublication() {
 
   setupFilesPreview("occImageFiles", "occImagePreviewList");
 
+  // --- GESTION DES ONGLETS (Photo vs Vidéo) ---
+  const tabs = document.querySelectorAll(".tab-btn");
+  const forms = document.querySelectorAll(".form-section");
+
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      // Retirer active partout
+      tabs.forEach(t => t.classList.remove("active"));
+      forms.forEach(f => f.classList.remove("active"));
+      
+      // Activer l'onglet cliqué
+      tab.classList.add("active");
+      document.getElementById(tab.dataset.target).classList.add("active");
+    });
+  });
+
+  // --- PUBLICATION PRODUIT (PHOTO) ---
   publishBtn.addEventListener("click", async () => {
     const nom = document.getElementById("occName").value.trim();
     const description = document.getElementById("occDescription").value.trim();
@@ -1549,6 +1842,22 @@ function setupPublication() {
       // Sauvegarde dans Firestore
       await saveOccasionProduct(productData);
 
+      // NOUVEAU : Proposer de publier la photo en story
+      if (confirm("Voulez-vous également publier la première photo de cette annonce dans votre story ?")) {
+        try {
+          await saveStory({
+            userId: user.id,
+            userName: user.nom || "Utilisateur",
+            userAvatar: user.photo_profil || "",
+            mediaUrl: imageUrls[0], // On prend la première image uploadée
+            mediaType: 'image'
+          });
+        } catch (storyError) {
+          console.error("Erreur lors de la publication de la story:", storyError);
+          // On n'affiche pas d'alerte pour ne pas perturber l'utilisateur, l'annonce principale est déjà passée.
+        }
+      }
+
       alert("Annonce publiée avec succès !");
       
       // Réinitialisation du formulaire
@@ -1570,6 +1879,70 @@ function setupPublication() {
       publishBtn.disabled = false;
     }
   });
+
+  // --- PUBLICATION VIDEO ---
+  const videoBtn = document.getElementById("publishVideoBtn");
+  const videoInput = document.getElementById("videoFile");
+  const videoPreview = document.getElementById("videoPreviewArea");
+
+  if (videoInput) {
+    videoInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        videoPreview.innerHTML = `<video src="${url}" controls style="max-width:100%; max-height:300px; border-radius:8px;"></video>`;
+      }
+    });
+  }
+
+  if (videoBtn) {
+    videoBtn.addEventListener("click", async () => {
+      const caption = document.getElementById("videoCaption").value.trim();
+      const file = videoInput.files[0];
+
+      if (!file) {
+        alert("Veuillez sélectionner une vidéo.");
+        return;
+      }
+      
+      // Vérification taille/type basique
+      if (file.size > 50 * 1024 * 1024) { // 50MB max
+        alert("Vidéo trop volumineuse (max 50MB).");
+        return;
+      }
+
+      videoBtn.textContent = "Publication en cours (patience)...";
+      videoBtn.disabled = true;
+
+      try {
+        // Upload
+        const mediaData = await uploadMediaToCloudinary(file);
+        
+        if (mediaData.type !== 'video') {
+          throw new Error("Le fichier n'est pas reconnu comme une vidéo.");
+        }
+
+        // Sauvegarde Firestore
+        await saveShortVideo({
+          userId: user.id,
+          userName: user.nom || "Utilisateur",
+          userAvatar: user.photo_profil || "",
+          userPhone: user.numero_whatsapp || "",
+          videoUrl: mediaData.url,
+          caption: caption
+        });
+
+        alert("Vidéo publiée avec succès !");
+        window.location.href = "videos.html";
+
+      } catch (e) {
+        console.error(e);
+        alert("Erreur: " + e.message);
+        videoBtn.textContent = "Publier la vidéo";
+        videoBtn.disabled = false;
+      }
+    });
+  }
 }
 
 /* --- GESTION DES AVIS --- */
@@ -1862,62 +2235,33 @@ function setupProfilePage() {
   const emailEl = document.getElementById("profileEmail");
   const roleEl = document.getElementById("profileRole");
   const saveBtn = document.getElementById("saveProfileBtn");
+  const profileForm = document.getElementById("profileForm");
+  const editProfileBtn = document.getElementById("editProfileBtn");
+  const cancelProfileBtn = document.getElementById("cancelProfileBtn");
   const deleteAccountBtn = document.getElementById("deleteAccountBtn");
     
-  if (!avatar || !nameInput || !phoneInput || !emailEl || !roleEl || !saveBtn) {
+  if (!profileForm) {
     return;
   }
 
   const logged = currentUser();
   if (!logged) {
-    alert("Connectez-vous pour accÃ©der au profil.");
+    alert("Connectez-vous pour accéder au profil.");
     window.location.href = "login.html";
     return;
   }
 
   function render(user) {
     avatar.src = user.photo_profil || "https://placehold.co/160x160?text=Profil";
+    // Display elements
+    document.getElementById("profileNameDisplay").textContent = user.nom || "-";
+    document.getElementById("profilePhoneDisplay").textContent = user.numero_whatsapp || "-";
+    // Input elements
     nameInput.value = user.nom || "";
     phoneInput.value = user.numero_whatsapp || "";
     emailEl.textContent = user.email || "-";
     roleEl.textContent = user.type_compte === "seller" ? "Vendeur" : "Utilisateur";
 
-    // --- INJECTION DES STATS (Abonnés / Abonnements) ---
-    const existingStats = document.querySelector(".profile-stats");
-    if (existingStats) existingStats.remove();
-
-    const statsContainer = document.createElement("div");
-    statsContainer.className = "profile-stats";
-    
-    // Calculs
-    const followingCount = (user.favoriteShops || []).length;
-    let followersCount = 0;
-    
-    // Si c'est un vendeur, on cherche sa boutique pour compter les followers
-    if (user.type_compte === "seller") {
-      const myShop = getShops().find(s => s.vendeur_id === user.id);
-      if (myShop && myShop.followers) {
-        followersCount = myShop.followers.length;
-      }
-    }
-
-    statsContainer.innerHTML = `
-      <div class="stat-item">
-        <span class="stat-value">${followingCount}</span>
-        <span class="stat-label">Abonnements</span>
-      </div>
-      ${user.type_compte === "seller" ? `
-      <div class="stat-item">
-        <span class="stat-value">${followersCount}</span>
-        <span class="stat-label">Abonnés</span>
-      </div>` : ''}
-    `;
-
-    // Insérer après l'avatar
-    const avatarWrap = document.querySelector(".profile-avatar-wrap");
-    if (avatarWrap) {
-      avatarWrap.parentNode.insertBefore(statsContainer, avatarWrap.nextSibling);
-    }
   }
 
   photoInput?.addEventListener("change", async () => {
@@ -1930,6 +2274,16 @@ function setupProfilePage() {
       alert(error.message);
       photoInput.value = "";
     }
+  });
+
+  editProfileBtn.addEventListener("click", () => {
+    profileForm.classList.add("is-editing");
+  });
+
+  cancelProfileBtn.addEventListener("click", () => {
+    profileForm.classList.remove("is-editing");
+    // Re-render to discard changes
+    render(currentUser());
   });
 
   saveBtn.addEventListener("click", async () => {
@@ -1979,6 +2333,7 @@ function setupProfilePage() {
       alert("Profil mis à jour avec succès !");
       render(updatedUser);
       updateAuthLink(); // Mettre à jour le header immédiatement
+      profileForm.classList.remove("is-editing"); // Back to view mode
       if (fileInput) fileInput.value = "";
 
     } catch (error) {
@@ -2091,15 +2446,6 @@ function setupProfilePage() {
   // Ajouter la fonctionnalité "Mes produits"
   setupMyProducts();
   
-  // Afficher la section boutique pour les vendeurs
-  if (logged.type_compte === "seller") {
-    const sellerSection = document.getElementById("sellerShopSection");
-    if (sellerSection) {
-      sellerSection.style.display = "block";
-      setupSellerShop();
-    }
-  }
-  
   // Ajouter les événements pour les photos de profil
   setupProfileImageModal();
 }
@@ -2116,9 +2462,8 @@ async function setupMyProducts() {
   await syncData();
 
   function renderMyProducts() {
-    const regular = getProducts().filter(p => p.vendeur_id === user.id).map(mapRegularProduct);
     const occasion = getOccasionProducts().filter(p => p.vendeur_id === user.id).map(mapOccasionToMarketplace);
-    const mapped = [...regular, ...occasion];
+    const mapped = [...occasion];
     
     if (mapped.length === 0) {
       container.innerHTML = "";
@@ -2263,33 +2608,140 @@ async function setupSellerShop() {
   const saveShopBtn = document.getElementById("saveShopBtn");
   const shopLogoDisplay = document.getElementById("shopLogoDisplay");
   const shopLogoFile = document.getElementById("shopLogoFile");
+  const shopForm = document.getElementById("shopForm");
+  const editShopBtn = document.getElementById("editShopBtn");
+  const cancelShopBtn = document.getElementById("cancelShopBtn");
   const deleteShopBtn = document.getElementById("deleteShopBtn");
   
+  if (!shopForm) return;
+
+  // Afficher la section si elle existe (qu'elle soit dans profile ou dashboard)
+  const sellerSection = document.getElementById("sellerShopSection");
+  if (sellerSection) {
+    sellerSection.style.display = "block";
+    
+    // --- INJECTION DES STATS (Abonnés / Abonnements) DANS LE DASHBOARD ---
+    // Nettoyer l'existant si nécessaire
+    const existingStats = sellerSection.querySelector(".profile-stats");
+    if (existingStats) existingStats.remove();
+
+    const statsContainer = document.createElement("div");
+    statsContainer.className = "profile-stats";
+    
+    // Calculs pour le dashboard
+    const followingCount = (user.favoriteShops || []).length;
+    let followersCount = 0;
+    const myShop = getShops().find(s => s.vendeur_id === user.id);
+    if (myShop && myShop.followers) {
+      followersCount = myShop.followers.length;
+    }
+
+    statsContainer.innerHTML = `
+      <div class="stat-item">
+        <span class="stat-value">${followingCount}</span>
+        <span class="stat-label">Abonnements</span>
+      </div>
+      <div class="stat-item" id="viewFollowersBtn" style="cursor: ${followersCount > 0 ? 'pointer' : 'default'}">
+        <span class="stat-value">${followersCount}</span>
+        <span class="stat-label">Abonnés</span>
+      </div>
+    `;
+
+    // Insérer après l'avatar de la boutique
+    const avatarWrap = sellerSection.querySelector(".profile-avatar-wrap");
+    if (avatarWrap) {
+      avatarWrap.parentNode.insertBefore(statsContainer, avatarWrap.nextSibling);
+    }
+
+    // --- GESTION CLICK ABONNÉS ---
+    const viewFollowersBtn = statsContainer.querySelector("#viewFollowersBtn");
+    if (viewFollowersBtn && followersCount > 0) {
+      viewFollowersBtn.addEventListener("click", async () => {
+        const modal = document.getElementById("followersModal");
+        const listContainer = document.getElementById("followersList");
+        
+        if (modal && listContainer) {
+          modal.classList.add("active");
+          listContainer.innerHTML = '<p class="empty" style="text-align:center;">Chargement...</p>';
+          
+          try {
+            // Récupérer les infos des abonnés
+            const users = await getUsersByIds(myShop.followers);
+            
+            if (users.length === 0) {
+              listContainer.innerHTML = '<p class="empty" style="text-align:center;">Aucun abonné trouvé.</p>';
+            } else {
+              listContainer.innerHTML = users.map(u => `
+                <div class="follower-item">
+                  <img src="${u.photo_profil || `https://ui-avatars.com/api/?name=${u.nom || "User"}&background=random`}" class="follower-avatar">
+                  <div>
+                    <div style="font-weight:700; font-size:0.95rem;">${u.nom || "Utilisateur"}</div>
+                    <div style="font-size:0.8rem; color:#666;">${u.email || ""}</div>
+                  </div>
+                </div>
+              `).join("");
+            }
+          } catch (e) {
+            listContainer.innerHTML = '<p class="empty" style="color:red; text-align:center;">Erreur chargement.</p>';
+          }
+        }
+      });
+    }
+
+    // Fermeture de la modale
+    const closeModalBtn = document.querySelector(".close-modal");
+    if (closeModalBtn) {
+      closeModalBtn.onclick = () => document.getElementById("followersModal").classList.remove("active");
+    }
+    window.onclick = (e) => {
+      const m = document.getElementById("followersModal");
+      if (e.target === m) m.classList.remove("active");
+    };
+  }
+
   // Récupérer la boutique existante
   const shops = getShops();
   const shop = shops.find(s => s.vendeur_id === user.id);
   
-  // Remplir le formulaire si la boutique existe
-  if (shop) {
-    document.getElementById("shopNameInput").value = shop.nom || "";
-    document.getElementById("shopDescriptionInput").value = shop.description || "";
-    document.getElementById("shopLogoInput").value = shop.logo || "";
-    document.getElementById("shopExternalLinkInput").value = shop.lien_site || "";
-    const hoursInput = document.getElementById("shopHoursInput");
-    if (hoursInput) hoursInput.value = shop.horaires || "";
-    const openInput = document.getElementById("shopOpenTimeInput");
-    const closeInput = document.getElementById("shopCloseTimeInput");
-    if (openInput) openInput.value = shop.openTime || "";
-    if (closeInput) closeInput.value = shop.closeTime || "";
-    if (shopLogoDisplay && shop.logo) {
-      shopLogoDisplay.src = shop.logo;
-    }
+  function renderShop(currentShop) {
+    // Remplir le formulaire si la boutique existe
+    if (currentShop) {
+      // View state
+      document.getElementById("shopNameDisplay").textContent = currentShop.nom || "-";
+      document.getElementById("shopDescriptionDisplay").textContent = currentShop.description || "-";
+      const linkDisplay = document.getElementById("shopExternalLinkDisplay");
+      if (currentShop.lien_site) {
+        linkDisplay.textContent = currentShop.lien_site;
+        linkDisplay.href = currentShop.lien_site;
+        linkDisplay.style.display = 'inline';
+      } else {
+        linkDisplay.textContent = "Non défini";
+        linkDisplay.href = "#";
+      }
+      document.getElementById("shopHoursDisplay").textContent = currentShop.horaires || "-";
 
-    // Afficher le bouton supprimer si la boutique existe
-    if (deleteShopBtn) deleteShopBtn.style.display = "block";
-  } else {
-    // Cacher le bouton supprimer si pas de boutique
-    if (deleteShopBtn) deleteShopBtn.style.display = "none";
+      // Edit state
+      document.getElementById("shopNameInput").value = currentShop.nom || "";
+      document.getElementById("shopDescriptionInput").value = currentShop.description || "";
+      document.getElementById("shopLogoInput").value = currentShop.logo || "";
+      document.getElementById("shopExternalLinkInput").value = currentShop.lien_site || "";
+      const hoursInput = document.getElementById("shopHoursInput");
+      if (hoursInput) hoursInput.value = currentShop.horaires || "";
+      const openInput = document.getElementById("shopOpenTimeInput");
+      const closeInput = document.getElementById("shopCloseTimeInput");
+      if (openInput) openInput.value = currentShop.openTime || "";
+      if (closeInput) closeInput.value = currentShop.closeTime || "";
+      if (shopLogoDisplay && currentShop.logo) {
+        shopLogoDisplay.src = currentShop.logo;
+      }
+
+      // Afficher le bouton supprimer si la boutique existe
+      if (deleteShopBtn) deleteShopBtn.style.display = "block";
+    } else {
+      // Cacher le bouton supprimer si pas de boutique
+      if (deleteShopBtn) deleteShopBtn.style.display = "none";
+      document.getElementById("shopNameDisplay").textContent = "Aucune boutique créée.";
+    }
   }
 
   // Prévisualisation du logo de la boutique lors de la sélection
@@ -2312,6 +2764,16 @@ async function setupSellerShop() {
       profileAvatar.src = shop.logo;
     }
   }
+
+  editShopBtn.addEventListener("click", () => {
+    shopForm.classList.add("is-editing");
+  });
+
+  cancelShopBtn.addEventListener("click", () => {
+    shopForm.classList.remove("is-editing");
+    // Re-render to discard changes
+    renderShop(shop);
+  });
   
   // Gérer la sauvegarde de la boutique
   if (saveShopBtn) {
@@ -2384,6 +2846,10 @@ async function setupSellerShop() {
           
           updateAuthLink();
           alert("Boutique enregistrée avec succès !");
+          shopForm.classList.remove("is-editing"); // Back to view mode
+          // Re-render with new data
+          const newShopData = await getShops().find(s => s.vendeur_id === user.id);
+          renderShop(newShopData);
           if (shopLogoFile) shopLogoFile.value = ""; // Reset de l'input
       } catch(e) {
           console.error(e);
@@ -2394,6 +2860,8 @@ async function setupSellerShop() {
       }
     });
   }
+
+  renderShop(shop);
 
   // Gestion de la suppression de boutique
   if (deleteShopBtn) {
@@ -2419,6 +2887,80 @@ async function setupSellerShop() {
   }
 }
 
+async function setupVideosPage() {
+  const page = document.body.dataset.page;
+  if (page !== 'videos' && page !== 'videos-no-connexion') return;
+
+  const container = document.getElementById("videoFeed");
+  const empty = document.getElementById("emptyVideos");
+  const user = currentUser();
+  
+  try {
+    const videos = await getShortVideos();
+    
+    if (videos.length === 0) {
+      empty.classList.remove("hidden");
+      return;
+    }
+
+    container.innerHTML = videos.map(v => {
+      const likes = v.likes || [];
+      const isLiked = user && likes.includes(user.id);
+      const likeCount = likes.length;
+      
+      // Préparation du lien WhatsApp
+      const phone = v.userPhone ? normalizePhone(v.userPhone) : "";
+      const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent("Bonjour, je suis intéressé par votre vidéo sur Kome-Gab : " + (v.caption || ""))}` : "#";
+      const waDisplay = phone ? "flex" : "none";
+
+      return `
+        <div class="video-card">
+          <video class="video-player" src="${v.videoUrl}" controls loop playsinline></video>
+          
+          <a href="${waLink}" class="whatsapp-btn" target="_blank" style="display:${waDisplay}" title="Contacter sur WhatsApp">
+            <i class="fa-brands fa-whatsapp"></i>
+          </a>
+
+          <button class="like-btn ${isLiked ? 'active' : ''}" data-id="${v.id}" data-type="video">♥</button>
+          <span class="video-like-count" data-id="${v.id}">${likeCount}</span>
+
+          <div class="video-overlay">
+            <div class="video-user">@${v.userName}</div>
+            <p>${v.caption || ""}</p>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    // Bind des boutons like vidéo
+    container.querySelectorAll(".like-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.getAttribute("data-id");
+        toggleLike(id, 'video');
+      });
+    });
+
+    // --- GESTION AUTOPLAY AU DÉFILEMENT ---
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const video = entry.target;
+        if (entry.isIntersecting) {
+          video.play().catch(e => console.log("Autoplay bloqué (interaction requise):", e));
+        } else {
+          video.pause();
+        }
+      });
+    }, { threshold: 0.6 }); // Se déclenche quand 60% de la vidéo est visible
+
+    container.querySelectorAll("video").forEach(video => observer.observe(video));
+
+  } catch (e) {
+    console.error("Erreur chargement vidéos", e);
+  }
+}
+
 /* ===================================
    INITIALISATION PRINCIPALE
    =================================== */
@@ -2428,6 +2970,9 @@ async function bootstrap() {
 
   if (user) { // L'utilisateur est connecté, il ne devrait pas être sur les pages visiteur
     switch (page) {
+      case 'videos': 
+        // Autorisé
+        break;
       case 'home-no-connexion':
         window.location.href = 'home.html';
         return;
@@ -2436,6 +2981,9 @@ async function bootstrap() {
         return;
       case 'boutique-no-connexion':
         window.location.href = 'boutique.html';
+        return;
+      case 'videos-no-connexion':
+        window.location.href = 'videos.html';
         return;
       case 'login':
       case 'register':
@@ -2450,6 +2998,7 @@ async function bootstrap() {
       case 'occasion':    // occasion.html
       case 'boutique':    // boutique.html
       case 'dashboard':   // dashboard.html
+      case 'videos':      // videos.html
       case 'publication': // publication.html
       case 'profile':     // profile.html
       case 'product':     // product.html
@@ -2467,10 +3016,13 @@ async function bootstrap() {
   setupLogin();
   setupPasswordToggle();
   setupPasswordValidation();
+  setupStories(); // Initialisation des stories
   setupHome();
   setupDashboard();
+  setupSellerShop(); // Initialisation de la gestion boutique (dashboard/profile)
   setupBoutiquePage();
   setupPublication();
+  setupVideosPage();
   setupOccasionPage();
   setupProductDetailPage();
   setupCartPage();

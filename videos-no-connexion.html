@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vidéos - Kome-Gab</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body data-page="videos-no-connexion">
+  <header class="topbar amazon-header">
+    <a class="brand-logo" href="index-no-connexion.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
+    <div class="top-actions">
+      <a class="link-btn" href="login.html" id="authLink">Connexion</a>
+    </div>
+  </header>
+
+  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <a href="index-no-connexion.html">Accueil</a>
+    <a href="videos-no-connexion.html">Vidéos</a>
+    <a href="occasion-no-connexion.html">Occasion</a>
+    <a href="boutique-no-connexion.html">Boutiques</a>
+  </nav>
+
+  <main class="page video-page-container">
+    <div id="videoFeed" class="video-feed"></div>
+    <p id="emptyVideos" class="empty hidden">Aucune vidéo pour le moment.</p>
+  </main>
+
+  <script type="module" src="js/script.js"></script>
+</body>
+</html>

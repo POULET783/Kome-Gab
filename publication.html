@@ -19,6 +19,7 @@
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
     <a href="index.html">Accueil</a>
+    <a href="videos.html">Vidéos</a>
     <a href="occasion.html">Occasion</a>
     <a href="boutique.html">Boutiques</a>
     <a href="publication.html">Publication</a>
@@ -29,39 +30,60 @@
 
   <main class="page">
     <section class="panel form">
-      <h2>Publier un produit</h2>
-      <label for="occName">Nom du produit</label>
-      <input id="occName" placeholder="Ex: iPhone 12">
+      <h2>Créer une publication</h2>
+      
+      <div class="tabs-container">
+        <button class="tab-btn active" data-target="form-photo">Produit (Photo)</button>
+        <button class="tab-btn" data-target="form-video">Vidéo Courte</button>
+      </div>
 
-      <label for="occDescription">Description</label>
-      <textarea id="occDescription" rows="3" placeholder="État, accessoires, etc."></textarea>
+      <!-- FORMULAIRE PHOTO (EXISTANT) -->
+      <div id="form-photo" class="form-section active form">
+        <label for="occName">Nom du produit</label>
+        <input id="occName" placeholder="Ex: iPhone 12">
 
-      <label for="occPrice">Prix (FCFA)</label>
-      <input id="occPrice" type="number" min="0" placeholder="100000">
+        <label for="occDescription">Description</label>
+        <textarea id="occDescription" rows="3" placeholder="État, accessoires, etc."></textarea>
 
-      <label for="occImageFiles">Images produit</label>
-      <input id="occImageFiles" type="file" accept="image/*" multiple>
-      <p class="small">Sélectionnez plusieurs images depuis vos dossiers (max 8 images, 2 Mo/image).</p>
-      <div id="occImagePreviewList" class="preview-grid"></div>
+        <label for="occPrice">Prix (FCFA)</label>
+        <input id="occPrice" type="number" min="0" placeholder="100000">
 
-      <label for="occCategory">Catégorie</label>
-      <select id="occCategory">
-        <option value="Téléphone">Téléphone</option>
-        <option value="Ordinateur">Ordinateur</option>
-        <option value="Voiture">Voiture</option>
-        <option value="Vêtement">Vêtement</option>
-        <option value="Chaussures">Chaussures</option>
-        <option value="Accessoires">Accessoires</option>
-        <option value="Montre">Montre</option>
-        <option value="Bijoux">Bijoux</option>
-        <option value="Nourriture">Nourriture</option>
-        <option value="Autre">Autre</option>
-      </select>
+        <label for="occImageFiles">Images produit</label>
+        <input id="occImageFiles" type="file" accept="image/*" multiple>
+        <p class="small">Sélectionnez plusieurs images depuis vos dossiers (max 8 images, 2 Mo/image).</p>
+        <div id="occImagePreviewList" class="preview-grid"></div>
 
-      <label for="occPhone">Numéro WhatsApp (sans +)</label>
-      <input id="occPhone" placeholder="241XXXXXXXX">
+        <label for="occCategory">Catégorie</label>
+        <select id="occCategory">
+          <option value="Téléphone">Téléphone</option>
+          <option value="Ordinateur">Ordinateur</option>
+          <option value="Voiture">Voiture</option>
+          <option value="Vêtement">Vêtement</option>
+          <option value="Chaussures">Chaussures</option>
+          <option value="Accessoires">Accessoires</option>
+          <option value="Montre">Montre</option>
+          <option value="Bijoux">Bijoux</option>
+          <option value="Nourriture">Nourriture</option>
+          <option value="Autre">Autre</option>
+        </select>
 
-      <button id="publishOccasionBtn">Publier</button>
+        <label for="occPhone">Numéro WhatsApp (sans +)</label>
+        <input id="occPhone" placeholder="241XXXXXXXX">
+
+        <button id="publishOccasionBtn">Publier l'annonce</button>
+      </div>
+
+      <!-- FORMULAIRE VIDÉO (NOUVEAU) -->
+      <div id="form-video" class="form-section form">
+        <label for="videoFile">Fichier Vidéo (Max 60s)</label>
+        <input id="videoFile" type="file" accept="video/*">
+        <div id="videoPreviewArea" style="margin-bottom: 10px;"></div>
+
+        <label for="videoCaption">Légende</label>
+        <textarea id="videoCaption" rows="3" placeholder="Décrivez votre vidéo..."></textarea>
+        
+        <button id="publishVideoBtn">Publier la vidéo</button>
+      </div>
     </section>
   </main>
 

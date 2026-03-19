@@ -969,6 +969,143 @@ textarea:focus {
   display: none;
 }
 
+/* ===================================
+   STORY VIEWER (FULLSCREEN)
+   =================================== */
+.story-viewer-modal {
+  display: none;
+  position: fixed;
+  z-index: 10002;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  flex-direction: column;
+}
+
+.story-viewer-modal.active {
+  display: flex;
+}
+
+.story-content-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.story-media {
+  max-width: 100%;
+  max-height: 100vh;
+  object-fit: contain;
+}
+
+.story-progress-bar {
+  height: 3px;
+  background: rgba(255,255,255,0.3);
+  margin: 10px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.story-progress-fill {
+  height: 100%;
+  background: #fff;
+  width: 0%;
+  transition: width 0.1s linear;
+}
+
+.story-user-info {
+  position: absolute;
+  top: 20px;
+  left: 15px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: bold;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  z-index: 10;
+}
+
+.close-story-viewer {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 2rem;
+  cursor: pointer;
+  z-index: 20;
+}
+
+/* ===================================
+   MODAL ABONNÉS
+   =================================== */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 10001; /* Au-dessus de tout */
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.active {
+  display: flex;
+}
+
+.modal-content {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.close-modal {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.close-modal:hover { color: #000; }
+
+.follower-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.follower-item:last-child {
+  border-bottom: none;
+}
+
+.follower-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #eee;
+}
+
 @media (min-width: 768px) {
   .topbar h1 {
     font-size: 1.25rem;
@@ -1134,6 +1271,143 @@ textarea:focus {
 }
 
 /* ===================================
+   ONGLETS PUBLICATION & VIDÉOS
+   =================================== */
+.tabs-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  background: #fff;
+  padding: 5px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+  transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.form-section {
+  display: none;
+}
+
+.form-section.active {
+  display: grid;
+}
+
+/* VIDÉO FEED */
+.video-page-container {
+  max-width: 600px; /* Plus étroit pour style mobile */
+  margin: 0 auto;
+  padding: 0;
+}
+
+.video-card {
+  position: relative;
+  background: #000;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  aspect-ratio: 9/16; /* Format portrait */
+  max-height: 85vh;
+}
+
+.video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 20px 60px 20px 20px; /* Padding droit pour éviter le bouton like */
+  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  color: white;
+  pointer-events: none; /* Laisse passer les clics */
+}
+
+.video-overlay > * {
+  pointer-events: auto; /* Réactive les clics sur le texte/liens */
+}
+
+.video-user {
+  font-weight: bold;
+  margin-bottom: 5px;
+  font-size: 1.1rem;
+}
+
+/* Bouton Like spécifique Vidéo */
+.video-card .like-btn {
+  top: auto;
+  bottom: 40px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.video-card .like-btn.active {
+  background: rgba(255, 255, 255, 0.9);
+  color: #e91e63;
+  border-color: white;
+}
+
+.video-like-count {
+  position: absolute;
+  bottom: 15px;
+  right: 10px;
+  width: 35px;
+  text-align: center;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  z-index: 20;
+}
+
+.video-card .whatsapp-btn {
+  position: absolute;
+  bottom: 90px; /* Au-dessus du bouton like */
+  right: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  z-index: 20;
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+}
+
+.video-card .whatsapp-btn:hover {
+  background: #25d366;
+  border-color: #25d366;
+  transform: scale(1.1);
+}
+
+/* ===================================
    STATS PROFIL (FOLLOWERS)
    =================================== */
 .profile-stats {
@@ -1159,6 +1433,139 @@ textarea:focus {
 .stat-label {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+/* ===================================
+   STORIES (STYLE FACEBOOK/INSTAGRAM)
+   =================================== */
+.stories-panel {
+  padding: 10px 0; /* Moins de padding vertical */
+  background: #fff;
+  overflow: hidden;
+}
+
+.stories-wrapper {
+  display: flex;
+  gap: 15px;
+  overflow-x: auto;
+  padding: 5px 15px;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+  scroll-behavior: smooth;
+}
+
+.stories-wrapper::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.story-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 70px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.story-ring {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  padding: 3px;
+  /* Dégradé Instagram/Facebook */
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+  transition: transform 0.2s ease;
+}
+
+.story-item:hover .story-ring {
+  transform: scale(1.05);
+}
+
+.story-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #fff; /* Bordure blanche interne */
+  background: #fff;
+}
+
+.story-name {
+  font-size: 0.75rem;
+  text-align: center;
+  max-width: 74px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Style pour "Créer une story" (User actuel) */
+.story-item.create .story-ring {
+  background: transparent;
+  border: 2px solid #ddd;
+  padding: 2px;
+  position: relative;
+}
+
+.story-badge-plus {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border: 2px solid #fff;
+}
+
+/* ===================================
+   PROFILE EDIT/VIEW MODE
+   =================================== */
+.form .edit-state {
+  display: none;
+}
+
+.form.is-editing .edit-state {
+  display: grid;
+  gap: 8px;
+}
+
+.form.is-editing .view-state {
+  display: none;
+}
+
+.info-item {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.info-item:last-of-type {
+  border-bottom: none;
+}
+
+.info-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.info-item p, .info-item a {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text);
+  word-break: break-word;
 }
 
   /* Panier latéral moderne */
