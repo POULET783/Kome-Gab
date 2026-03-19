@@ -143,6 +143,10 @@ body {
   transition: all 0.2s ease;
 }
 
+.wagon-actions {
+  margin-bottom: 80px;
+}
+
 .wagon-close:hover {
   background: #f0f0f0;
   color: #333;
