@@ -40,12 +40,20 @@
         <input id="shopLogoFile" type="file" accept="image/*" style="display: none;">
       </div>
 
+      <!-- État sans boutique : Affiché uniquement si pas de boutique -->
+      <div id="noShopActions" style="text-align: center; margin-top: 20px; display: none;">
+        <p style="color: var(--muted); margin-bottom: 15px;">Vous n'avez pas encore configuré votre boutique.</p>
+        <a href="create-shop.html" class="link-btn">Créer une boutique</a>
+      </div>
+
       <div class="form" id="shopForm">
         <!-- View State -->
         <div class="view-state">
           <div class="info-item"><span class="info-label">Nom</span><p id="shopNameDisplay"></p></div>
           <div class="info-item"><span class="info-label">Description</span><p id="shopDescriptionDisplay"></p></div>
+          <div class="info-item"><span class="info-label">Adresse</span><p id="shopAddressDisplay"></p></div>
           <div class="info-item"><span class="info-label">Site web</span><a id="shopExternalLinkDisplay" href="#" target="_blank" rel="noopener"></a></div>
+          <div class="info-item"><span class="info-label">Jours d'ouverture</span><p id="shopOpenDaysDisplay"></p></div>
           <div class="info-item"><span class="info-label">Horaires</span><p id="shopHoursDisplay"></p></div>
           <button id="editShopBtn" type="button">Modifier</button>
         </div>
@@ -58,10 +66,12 @@
           <textarea id="shopDescriptionInput" placeholder="Description de votre boutique" rows="3"></textarea>
           <label for="shopLogoInput">URL du logo</label>
           <input id="shopLogoInput" placeholder="https://example.com/logo.png">
-          <label for="shopExternalLinkInput">Lien site externe (optionnel)</label>
-          <input id="shopExternalLinkInput" placeholder="https://example.com">
-          <label for="shopHoursInput">Horaires d'ouverture</label>
-          <textarea id="shopHoursInput" placeholder="ex: Lundi - Samedi : 08h - 18h" rows="2"></textarea>
+          <label for="shopAddressInput">Adresse</label>
+          <input id="shopAddressInput" placeholder="Adresse / Localisation">
+          <label for="shopExternalLinkInput">Site Web</label>
+          <input id="shopExternalLinkInput" placeholder="https://mon-site.com">
+          <label for="shopHoursInput">Jours d'ouverture</label>
+          <textarea id="shopHoursInput" placeholder="ex: Lundi - Samedi" rows="2"></textarea>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
             <div>
               <label for="shopOpenTimeInput" style="font-size: 0.85rem;">Heure d'ouverture (Auto)</label>
@@ -89,7 +99,7 @@
       </div>
     </section>
 
-    <section class="panel form">
+    <section class="panel form" id="addProductSection">
       <h2>Ajouter un produit</h2>
       <label for="name">Nom</label>
       <input id="name" placeholder="Ex: Samsung A54">
@@ -117,7 +127,7 @@
       <button id="addProductBtn">Ajouter</button>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="manageProductsSection">
       <h3>Mes produits</h3>
       <div id="productList" class="cards"></div>
       <p id="emptySellerProducts" class="empty">Vous n'avez pas encore ajouté de produit.</p>

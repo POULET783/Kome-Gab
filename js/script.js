@@ -3,7 +3,7 @@
 // Import des fonctions Firebase et Cloudinary
 import {
   logoutUser, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, getUsersByIds,
-  uploadMediaToCloudinary, uploadImageToCloudinary, saveOccasionProduct, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, toggleShopFollow, saveReview, getReviews, updateUserInFirestore, saveStory, getActiveStories,
+  uploadMediaToCloudinary, uploadImageToCloudinary, saveOccasionProduct, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, deleteShopAndDissociateProducts, toggleShopFollow, saveReview, getReviews, updateUserInFirestore, saveStory, getActiveStories,
   saveShortVideo, getShortVideos, toggleVideoLike
 } from "../firebase-app.js";
 
@@ -819,7 +819,22 @@ async function setupStories() {
   // Afficher les stories des autres utilisateurs
   Object.keys(storiesByUser).forEach(userId => {
     const group = storiesByUser[userId];
-    const img = group.userAvatar || "https://placehold.co/100x100";
+    
+    // Trier pour être sûr d'avoir la dernière story en premier
+    group.stories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const latest = group.stories[0];
+
+    // Par défaut l'avatar, sinon l'image de la dernière story
+    let img = group.userAvatar || "https://placehold.co/100x100";
+    
+    if (latest) {
+      if (latest.mediaType === 'image') {
+        img = latest.mediaUrl;
+      } else if (latest.mediaType === 'video') {
+        // Astuce Cloudinary : remplacer l'extension vidéo par .jpg pour la miniature
+        img = latest.mediaUrl.replace(/\.[^/.]+$/, ".jpg");
+      }
+    }
     
     otherStoriesHtml += `
       <div class="story-item view-story" data-userid="${userId}">
@@ -2625,67 +2640,70 @@ async function setupSellerShop() {
     const existingStats = sellerSection.querySelector(".profile-stats");
     if (existingStats) existingStats.remove();
 
-    const statsContainer = document.createElement("div");
-    statsContainer.className = "profile-stats";
-    
-    // Calculs pour le dashboard
-    const followingCount = (user.favoriteShops || []).length;
-    let followersCount = 0;
     const myShop = getShops().find(s => s.vendeur_id === user.id);
-    if (myShop && myShop.followers) {
-      followersCount = myShop.followers.length;
-    }
 
-    statsContainer.innerHTML = `
-      <div class="stat-item">
-        <span class="stat-value">${followingCount}</span>
-        <span class="stat-label">Abonnements</span>
-      </div>
-      <div class="stat-item" id="viewFollowersBtn" style="cursor: ${followersCount > 0 ? 'pointer' : 'default'}">
-        <span class="stat-value">${followersCount}</span>
-        <span class="stat-label">Abonnés</span>
-      </div>
-    `;
+    if (myShop) {
+      const statsContainer = document.createElement("div");
+      statsContainer.className = "profile-stats";
+      
+      // Calculs pour le dashboard
+      const followingCount = (user.favoriteShops || []).length;
+      let followersCount = 0;
+      if (myShop.followers) {
+        followersCount = myShop.followers.length;
+      }
 
-    // Insérer après l'avatar de la boutique
-    const avatarWrap = sellerSection.querySelector(".profile-avatar-wrap");
-    if (avatarWrap) {
-      avatarWrap.parentNode.insertBefore(statsContainer, avatarWrap.nextSibling);
-    }
+      statsContainer.innerHTML = `
+        <div class="stat-item">
+          <span class="stat-value">${followingCount}</span>
+          <span class="stat-label">Abonnements</span>
+        </div>
+        <div class="stat-item" id="viewFollowersBtn" style="cursor: ${followersCount > 0 ? 'pointer' : 'default'}">
+          <span class="stat-value">${followersCount}</span>
+          <span class="stat-label">Abonnés</span>
+        </div>
+      `;
 
-    // --- GESTION CLICK ABONNÉS ---
-    const viewFollowersBtn = statsContainer.querySelector("#viewFollowersBtn");
-    if (viewFollowersBtn && followersCount > 0) {
-      viewFollowersBtn.addEventListener("click", async () => {
-        const modal = document.getElementById("followersModal");
-        const listContainer = document.getElementById("followersList");
-        
-        if (modal && listContainer) {
-          modal.classList.add("active");
-          listContainer.innerHTML = '<p class="empty" style="text-align:center;">Chargement...</p>';
+      // Insérer après l'avatar de la boutique
+      const avatarWrap = sellerSection.querySelector(".profile-avatar-wrap");
+      if (avatarWrap) {
+        avatarWrap.parentNode.insertBefore(statsContainer, avatarWrap.nextSibling);
+      }
+
+      // --- GESTION CLICK ABONNÉS ---
+      const viewFollowersBtn = statsContainer.querySelector("#viewFollowersBtn");
+      if (viewFollowersBtn && followersCount > 0) {
+        viewFollowersBtn.addEventListener("click", async () => {
+          const modal = document.getElementById("followersModal");
+          const listContainer = document.getElementById("followersList");
           
-          try {
-            // Récupérer les infos des abonnés
-            const users = await getUsersByIds(myShop.followers);
+          if (modal && listContainer) {
+            modal.classList.add("active");
+            listContainer.innerHTML = '<p class="empty" style="text-align:center;">Chargement...</p>';
             
-            if (users.length === 0) {
-              listContainer.innerHTML = '<p class="empty" style="text-align:center;">Aucun abonné trouvé.</p>';
-            } else {
-              listContainer.innerHTML = users.map(u => `
-                <div class="follower-item">
-                  <img src="${u.photo_profil || `https://ui-avatars.com/api/?name=${u.nom || "User"}&background=random`}" class="follower-avatar">
-                  <div>
-                    <div style="font-weight:700; font-size:0.95rem;">${u.nom || "Utilisateur"}</div>
-                    <div style="font-size:0.8rem; color:#666;">${u.email || ""}</div>
+            try {
+              // Récupérer les infos des abonnés
+              const users = await getUsersByIds(myShop.followers);
+              
+              if (users.length === 0) {
+                listContainer.innerHTML = '<p class="empty" style="text-align:center;">Aucun abonné trouvé.</p>';
+              } else {
+                listContainer.innerHTML = users.map(u => `
+                  <div class="follower-item">
+                    <img src="${u.photo_profil || `https://ui-avatars.com/api/?name=${u.nom || "User"}&background=random`}" class="follower-avatar">
+                    <div>
+                      <div style="font-weight:700; font-size:0.95rem;">${u.nom || "Utilisateur"}</div>
+                      <div style="font-size:0.8rem; color:#666;">${u.email || ""}</div>
+                    </div>
                   </div>
-                </div>
-              `).join("");
+                `).join("");
+              }
+            } catch (e) {
+              listContainer.innerHTML = '<p class="empty" style="color:red; text-align:center;">Erreur chargement.</p>';
             }
-          } catch (e) {
-            listContainer.innerHTML = '<p class="empty" style="color:red; text-align:center;">Erreur chargement.</p>';
           }
-        }
-      });
+        });
+      }
     }
 
     // Fermeture de la modale
@@ -2704,11 +2722,23 @@ async function setupSellerShop() {
   const shop = shops.find(s => s.vendeur_id === user.id);
   
   function renderShop(currentShop) {
+    const noShopActions = document.getElementById("noShopActions");
+    const addProductSection = document.getElementById("addProductSection");
+    const manageProductsSection = document.getElementById("manageProductsSection");
+
     // Remplir le formulaire si la boutique existe
     if (currentShop) {
+      // Afficher l'interface complète
+      if (shopForm) shopForm.style.display = "grid";
+      if (noShopActions) noShopActions.style.display = "none";
+      if (addProductSection) addProductSection.style.display = "block";
+      if (manageProductsSection) manageProductsSection.style.display = "block";
+
+      if (editShopBtn) editShopBtn.style.display = "inline-block";
       // View state
       document.getElementById("shopNameDisplay").textContent = currentShop.nom || "-";
       document.getElementById("shopDescriptionDisplay").textContent = currentShop.description || "-";
+      if (document.getElementById("shopAddressDisplay")) document.getElementById("shopAddressDisplay").textContent = currentShop.adresse || "-";
       const linkDisplay = document.getElementById("shopExternalLinkDisplay");
       if (currentShop.lien_site) {
         linkDisplay.textContent = currentShop.lien_site;
@@ -2718,13 +2748,16 @@ async function setupSellerShop() {
         linkDisplay.textContent = "Non défini";
         linkDisplay.href = "#";
       }
-      document.getElementById("shopHoursDisplay").textContent = currentShop.horaires || "-";
+      
+      if (document.getElementById("shopOpenDaysDisplay")) document.getElementById("shopOpenDaysDisplay").textContent = currentShop.horaires || "-";
+      document.getElementById("shopHoursDisplay").textContent = (currentShop.openTime && currentShop.closeTime) ? `${currentShop.openTime} - ${currentShop.closeTime}` : "-";
 
       // Edit state
       document.getElementById("shopNameInput").value = currentShop.nom || "";
       document.getElementById("shopDescriptionInput").value = currentShop.description || "";
       document.getElementById("shopLogoInput").value = currentShop.logo || "";
-      document.getElementById("shopExternalLinkInput").value = currentShop.lien_site || "";
+      if (document.getElementById("shopAddressInput")) document.getElementById("shopAddressInput").value = currentShop.adresse || "";
+      if (document.getElementById("shopExternalLinkInput")) document.getElementById("shopExternalLinkInput").value = currentShop.lien_site || "";
       const hoursInput = document.getElementById("shopHoursInput");
       if (hoursInput) hoursInput.value = currentShop.horaires || "";
       const openInput = document.getElementById("shopOpenTimeInput");
@@ -2738,10 +2771,29 @@ async function setupSellerShop() {
       // Afficher le bouton supprimer si la boutique existe
       if (deleteShopBtn) deleteShopBtn.style.display = "block";
     } else {
-      // Cacher le bouton supprimer si pas de boutique
-      if (deleteShopBtn) deleteShopBtn.style.display = "none";
-      document.getElementById("shopNameDisplay").textContent = "Aucune boutique créée.";
+      // MASQUER TOUT sauf l'avatar et le bouton créer
+      if (shopForm) shopForm.style.display = "none";
+      if (addProductSection) addProductSection.style.display = "none";
+      if (manageProductsSection) manageProductsSection.style.display = "none";
+      
+      // Afficher le bloc d'action "Créer boutique"
+      if (noShopActions) noShopActions.style.display = "block";
+      
+      // Réinitialiser l'avatar à un placeholder neutre si nécessaire
+      if (shopLogoDisplay) shopLogoDisplay.src = "https://placehold.co/160x160/e0e0e0/ffffff?text=Empty";
     }
+  }
+
+  // Empêcher le clic sur la modification du logo si la boutique n'existe pas
+  const shopLogoLabel = document.querySelector("label[for='shopLogoFile']");
+  if (shopLogoLabel) {
+    shopLogoLabel.addEventListener("click", (e) => {
+      const myShop = getShops().find(s => s.vendeur_id === user.id);
+      if (!myShop) {
+        e.preventDefault();
+        alert("Veuillez d'abord créer une boutique avant de modifier la photo de profil.");
+      }
+    });
   }
 
   // Prévisualisation du logo de la boutique lors de la sélection
@@ -2780,6 +2832,7 @@ async function setupSellerShop() {
     saveShopBtn.addEventListener("click", async () => {
       const nom = document.getElementById("shopNameInput").value.trim();
       const description = document.getElementById("shopDescriptionInput").value.trim();
+      const adresse = document.getElementById("shopAddressInput")?.value.trim() || null;
       const lien_site = document.getElementById("shopExternalLinkInput")?.value.trim() || null;
       const horaires = document.getElementById("shopHoursInput")?.value.trim() || null;
       const openTime = document.getElementById("shopOpenTimeInput")?.value || null;
@@ -2825,6 +2878,7 @@ async function setupSellerShop() {
       const shopData = {
           nom,
           description,
+          adresse,
           logo: logoUrl,
           lien_site,
           horaires,
@@ -2865,23 +2919,32 @@ async function setupSellerShop() {
 
   // Gestion de la suppression de boutique
   if (deleteShopBtn) {
-    deleteShopBtn.addEventListener("click", () => {
-      if (confirm("Voulez-vous vraiment supprimer votre boutique ?\n\nVos produits resteront visibles mais ne seront plus associés à une page boutique.")) {
-        const allShops = getShops().filter((s) => s.vendeur_id !== user.id);
-        saveShops(allShops);
+    deleteShopBtn.addEventListener("click", async () => {
+      if (confirm("⚠️ ATTENTION : Cette action est irréversible.\n\nVoulez-vous vraiment supprimer votre boutique ?\nCela la supprimera de la base de données et dissociera tous vos produits.")) {
+        
+        const shopToDelete = getShops().find(s => s.vendeur_id === user.id);
+        if (!shopToDelete) {
+          alert("Aucune boutique à supprimer.");
+          return;
+        }
 
-        // Optionnel : Désassocier les produits de la boutique supprimée
-        const products = getProducts();
-        products.forEach((p) => {
-          if (p.vendeur_id === user.id) {
-            p.boutique_id = "";
-            p.shopId = "";
-          }
-        });
-        saveProducts(products);
+        const originalText = deleteShopBtn.textContent;
+        deleteShopBtn.textContent = "Suppression en cours...";
+        deleteShopBtn.disabled = true;
 
-        alert("Boutique supprimée avec succès.");
-        window.location.reload();
+        try {
+          // Appel de la fonction qui supprime de Firestore
+          await deleteShopAndDissociateProducts(shopToDelete.id);
+          await syncData(); // Mettre à jour le cache local
+
+          alert("Boutique supprimée avec succès.");
+          window.location.reload();
+        } catch (error) {
+          console.error("Erreur lors de la suppression de la boutique:", error);
+          alert("Une erreur est survenue lors de la suppression.");
+          deleteShopBtn.textContent = originalText;
+          deleteShopBtn.disabled = false;
+        }
       }
     });
   }
@@ -2961,6 +3024,76 @@ async function setupVideosPage() {
   }
 }
 
+async function setupCreateShopPage() {
+  const form = document.getElementById("createShopForm");
+  if (!form) return;
+
+  const user = requireSeller();
+  if (!user) return;
+
+  // Vérifier si la boutique existe déjà
+  await syncData();
+  const existingShop = getShops().find(s => s.vendeur_id === user.id);
+  
+  if (existingShop) {
+    alert("Vous avez déjà une boutique ! Redirection vers le tableau de bord.");
+    window.location.href = "dashboard.html";
+    return;
+  }
+
+  setupFilesPreview("shopLogo", "shopLogoPreview");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    
+    const btn = document.getElementById("createShopBtn");
+    const originalText = btn.textContent;
+    btn.textContent = "Création en cours...";
+    btn.disabled = true;
+
+    try {
+      const name = document.getElementById("shopName").value.trim();
+      const description = document.getElementById("shopDescription").value.trim();
+      const address = document.getElementById("shopAddress").value.trim();
+      const hours = document.getElementById("shopOpenDayInput").value.trim();
+      const openTime = document.getElementById("shopOpenTimeInput").value;
+      const closeTime = document.getElementById("shopCloseTimeInput").value;
+      const logoInput = document.getElementById("shopLogo");
+
+      let logoUrl = "";
+      if (logoInput.files.length > 0) {
+        logoUrl = await uploadImageToCloudinary(logoInput.files[0]);
+      }
+
+      const shopData = {
+        nom: name,
+        description: description,
+        adresse: address,
+        horaires: hours,
+        openTime,
+        closeTime,
+        logo: logoUrl,
+        vendeur_id: user.id,
+        contact_whatsapp: user.numero_whatsapp,
+        date_creation: new Date().toISOString(),
+        followers: []
+      };
+
+      await saveShopToFirestore(shopData);
+      await syncData(); // Force la mise à jour du cache
+      
+      alert("Félicitations ! Votre boutique a été créée avec succès.");
+      window.location.href = "dashboard.html";
+
+    } catch (error) {
+      console.error(error);
+      alert("Erreur: " + error.message);
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+}
+
 /* ===================================
    INITIALISATION PRINCIPALE
    =================================== */
@@ -2972,6 +3105,9 @@ async function bootstrap() {
     switch (page) {
       case 'videos': 
         // Autorisé
+        break;
+      case 'create-shop':
+        // Autorisé pour les vendeurs connectés (vérifié dans setupCreateShopPage)
         break;
       case 'home-no-connexion':
         window.location.href = 'home.html';
@@ -3002,6 +3138,7 @@ async function bootstrap() {
       case 'publication': // publication.html
       case 'profile':     // profile.html
       case 'product':     // product.html
+      case 'create-shop': // create-shop.html
         window.location.href = 'login.html';
         return;
     }
@@ -3026,6 +3163,7 @@ async function bootstrap() {
   setupOccasionPage();
   setupProductDetailPage();
   setupCartPage();
+  setupCreateShopPage();
   setupProfilePage();
   setupSidebarCart(); // Ajout du panier latéral
   updateCartCountUI();

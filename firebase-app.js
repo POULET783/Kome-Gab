@@ -1,7 +1,7 @@
 // Importation des SDKs Firebase (v9 modular)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, setDoc, getDoc, deleteDoc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, setDoc, getDoc, deleteDoc, updateDoc, runTransaction, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- CONFIGURATION ---
 
@@ -239,6 +239,35 @@ export const saveShopToFirestore = async (data, id = null) => {
     return id;
   }
   return (await addDoc(collection(db, "shops"), data)).id; // Création
+};
+
+export const deleteShopAndDissociateProducts = async (shopId) => {
+  if (!shopId) throw new Error("L'ID de la boutique est requis.");
+
+  const shopRef = doc(db, "shops", shopId);
+  const productsQuery = query(collection(db, "products"), where("shopId", "==", shopId));
+
+  try {
+    const batch = writeBatch(db);
+
+    // 1. Dissocier les produits
+    const productsSnapshot = await getDocs(productsQuery);
+    productsSnapshot.forEach(productDoc => {
+      batch.update(productDoc.ref, {
+        shopId: null,
+        boutique_id: null
+      });
+    });
+
+    // 2. Supprimer la boutique
+    batch.delete(shopRef);
+
+    // 3. Valider le batch
+    await batch.commit();
+  } catch (error) {
+    console.error("Erreur lors de la suppression de la boutique et de la dissociation des produits :", error);
+    throw error;
+  }
 };
 
 /**
