@@ -2260,3 +2260,35 @@ body.cart-open {
     right: 0;
   }
 }
+
+/* ===================================
+   BOUTONS DANGER (RESET STYLE)
+   =================================== */
+#deleteAccountBtn,
+#deleteShopBtn {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  color: var(--danger) !important;
+  text-decoration: underline;
+  padding: 0 !important;
+  width: auto !important;
+  justify-self: start;
+  transform: none !important;
+}
+
+/* ===================================
+   BOUTONS MODIFIER (RESET STYLE)
+   =================================== */
+#editProfileBtn,
+#editShopBtn {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  color: var(--primary) !important;
+  text-decoration: underline;
+  padding: 0 !important;
+  width: auto !important;
+  justify-self: start;
+  transform: none !important;
+}
