@@ -3,7 +3,7 @@
 // Import des fonctions Firebase et Cloudinary
 import {
   logoutUser, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, getUsersByIds,
-  uploadMediaToCloudinary, uploadImageToCloudinary, saveOccasionProduct, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, deleteShopAndDissociateProducts, toggleShopFollow, saveReview, getReviews, updateUserInFirestore, saveStory, getActiveStories,
+  uploadMediaToCloudinary, uploadImageToCloudinary, saveOccasionProduct, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, deleteShopAndDissociateProducts, toggleShopFollow, saveReview, getReviews, updateUserInFirestore, saveStory, getActiveStories, deleteStory, viewStory,
   saveShortVideo, getShortVideos, toggleVideoLike
 } from "../firebase-app.js";
 
@@ -168,6 +168,20 @@ function normalizeImageArray(images, fallbackImage) {
   return Array.from(new Set(result));
 }
 
+function formatTimeAgo(dateString) {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+
+  if (seconds < 60) return "À l'instant";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `Il y a ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Il y a ${hours} h`;
+  return `Il y a ${Math.floor(hours / 24)} j`;
+}
+
 // --- OPTIMISATION DES IMAGES CLOUDINARY ---
 function optimizeCloudinaryUrl(url, width = 500) {
   if (!url || typeof url !== "string") return "";
@@ -204,7 +218,7 @@ async function getImagesDataFromInput(inputId) {
 
   for (const file of files) {
     if (!file.type.startsWith("image/")) {
-      throw new Error("Tous les fichiers doivent Ãªtre des images.");
+      throw new Error("Tous les fichiers doivent être des images.");
     }
 
     if (file.size > MAX_IMAGE_BYTES) {
@@ -228,7 +242,7 @@ function renderUploadPreview(previewId, images) {
   }
 
   preview.innerHTML = images
-    .map((src, index) => `<img src="${src}" alt="AperÃ§u ${index + 1}">`)
+    .map((src, index) => `<img src="${src}" alt="Aperçu ${index + 1}">`)
     .join("");
   preview.classList.remove("hidden");
   }
@@ -501,12 +515,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function addToCart(product) {
   if (!product || product.isOccasion) {
-    alert("Le panier est rÃ©servÃ© aux produits de boutique.");
+    alert("Le panier est réservé aux produits de boutique.");
     return;
   }
 
   if (product.status === "sold") {
-    alert("Ce produit est marquÃ© comme vendu.");
+    alert("Ce produit est marqué comme vendu.");
     return;
   }
 
@@ -530,7 +544,7 @@ function addToCart(product) {
 
   saveCartItems(items);
   updateCartCountUI();
-  alert("Produit ajoutÃ© au panier.");
+  alert("Produit ajouté au panier.");
 }
 
 function updateCartQuantity(productId, delta) {
@@ -1024,18 +1038,26 @@ let currentStoryTimer = null;
 function openStoryViewer(stories, userContext) {
   const modal = document.getElementById("storyViewerModal");
   const contentContainer = document.getElementById("storyContentContainer");
-  const progressBar = document.getElementById("storyProgress");
+  const progressContainer = document.getElementById("storyProgressContainer");
   const userInfo = document.getElementById("storyUserInfo");
   const closeBtn = modal.querySelector(".close-story-viewer");
 
   let currentIndex = 0;
   modal.classList.add("active");
 
-  // Setup User Info Header
-  userInfo.innerHTML = `
-    <img src="${userContext.photo_profil || "https://placehold.co/50x50"}" style="width:32px; height:32px; border-radius:50%;">
-    <span>${userContext.nom}</span>
-  `;
+  // Créer ou récupérer le bouton de suppression
+  let deleteBtn = modal.querySelector(".delete-story-btn");
+  if (!deleteBtn) {
+    deleteBtn = document.createElement("button");
+    deleteBtn.className = "delete-story-btn";
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+    modal.appendChild(deleteBtn);
+  }
+
+  // Générer les segments de progression (1 par story)
+  progressContainer.innerHTML = stories.map(() => 
+    `<div class="story-segment"><div class="story-segment-fill"></div></div>`
+  ).join('');
 
   const closeViewer = () => {
     modal.classList.remove("active");
@@ -1050,13 +1072,78 @@ function openStoryViewer(stories, userContext) {
       closeViewer();
       return;
     }
+
     if (index < 0) index = 0;
     currentIndex = index;
 
+    // IMPORTANT: On définit la story et l'utilisateur COURANT avant de les utiliser
     const story = stories[index];
+    const currentUserData = currentUser();
+
+    // --- MISE A JOUR DES INFOS (Temps + Vues) ---
+    const timeAgo = formatTimeAgo(story.createdAt);
+    const viewers = story.viewers || [];
+    const viewCount = viewers.length;
+    
+    // Incrémenter la vue si ce n'est pas ma story et que je ne l'ai pas encore vue
+    if (currentUserData && currentUserData.id !== story.userId) {
+        if (!viewers.includes(currentUserData.id)) {
+            viewStory(story.id, currentUserData.id);
+            // Mise à jour locale pour éviter le double comptage dans la session
+            if (!story.viewers) story.viewers = [];
+            story.viewers.push(currentUserData.id);
+        }
+    }
+
+    // Construction de l'affichage info
+    let metaInfo = timeAgo;
+    // Si c'est ma story, j'affiche le nombre de vues
+    if (currentUserData && currentUserData.id === story.userId) {
+        metaInfo += ` • ${viewCount} vue${viewCount > 1 ? 's' : ''}`;
+    }
+
+    userInfo.innerHTML = `
+      <img src="${userContext.photo_profil || "https://placehold.co/50x50"}" style="width:32px; height:32px; border-radius:50%;">
+      <div style="display:flex; flex-direction:column; justify-content:center;">
+        <span style="line-height:1.2;">${userContext.nom}</span>
+        <span style="font-size:0.75rem; opacity:0.8; font-weight:normal;">${metaInfo}</span>
+      </div>
+    `;
+
     contentContainer.innerHTML = ""; // Clear previous
-    progressBar.style.width = "0%";
+    
+    // Réinitialiser visuellement les barres
+    const fills = progressContainer.querySelectorAll(".story-segment-fill");
+    fills.forEach((fill, i) => {
+      fill.style.transition = "none";
+      fill.style.width = i < index ? "100%" : "0%";
+    });
+
     if (currentStoryTimer) clearTimeout(currentStoryTimer);
+
+    // Gestion du bouton supprimer (si c'est ma story)
+    if (currentUserData && currentUserData.id === story.userId) {
+      deleteBtn.style.display = "flex";
+      deleteBtn.onclick = async (e) => {
+        e.stopPropagation(); // Empêcher la navigation
+        if (confirm("Voulez-vous vraiment supprimer cette story ?")) {
+          // Mettre en pause le timer
+          if (currentStoryTimer) clearTimeout(currentStoryTimer);
+          
+          try {
+            await deleteStory(story.id);
+            alert("Story supprimée.");
+            closeViewer();
+            setupStories(); // Recharger la barre des stories
+          } catch (error) {
+            console.error(error);
+            alert("Erreur lors de la suppression.");
+          }
+        }
+      };
+    } else {
+      deleteBtn.style.display = "none";
+    }
 
     // Create Element
     let mediaEl;
@@ -1094,12 +1181,15 @@ function openStoryViewer(stories, userContext) {
   };
 
   const startProgress = (duration) => {
-    progressBar.style.transition = "none";
-    progressBar.style.width = "0%";
-    // Force reflow
-    void progressBar.offsetWidth;
-    progressBar.style.transition = `width ${duration}ms linear`;
-    progressBar.style.width = "100%";
+    const fills = progressContainer.querySelectorAll(".story-segment-fill");
+    const currentFill = fills[currentIndex];
+    
+    if (currentFill) {
+      // Force reflow pour redémarrer l'animation
+      void currentFill.offsetWidth;
+      currentFill.style.transition = `width ${duration}ms linear`;
+      currentFill.style.width = "100%";
+    }
 
     if (stories[currentIndex].mediaType !== "video") {
         currentStoryTimer = setTimeout(() => {
@@ -2942,7 +3032,7 @@ async function setupSellerShop() {
           alert("Boutique enregistrée avec succès !");
           shopForm.classList.remove("is-editing"); // Back to view mode
           // Re-render with new data
-          const newShopData = await getShops().find(s => s.vendeur_id === user.id);
+          const newShopData = getShops().find(s => s.vendeur_id === user.id);
           renderShop(newShopData);
           if (shopLogoFile) shopLogoFile.value = ""; // Reset de l'input
       } catch(e) {

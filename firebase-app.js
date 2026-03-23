@@ -1,7 +1,7 @@
 // Importation des SDKs Firebase (v9 modular)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, setDoc, getDoc, deleteDoc, updateDoc, runTransaction, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, setDoc, getDoc, deleteDoc, updateDoc, runTransaction, writeBatch, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- CONFIGURATION ---
 
@@ -27,47 +27,9 @@ const db = getFirestore(app);
 
 // --- 1. FIREBASE AUTHENTICATION ---
 
-// Surveiller l'état de connexion
-onAuthStateChanged(auth, (user) => {
-  const profileAvatar = document.getElementById('headerProfileAvatar');
-  const logoutBtn = document.getElementById('logoutBtn');
-
-  if (user) {
-    // Utilisateur connecté
-    console.log("Utilisateur connecté:", user.email);
-    if (profileAvatar) {
-      // Utiliser l'image de profil de l'utilisateur ou une par défaut
-      profileAvatar.src = user.photoURL || `https://ui-avatars.com/api/?name=${user.email}&background=3b82f6&color=fff&size=32`;
-    }
-  } else {
-    // Utilisateur déconnecté
-    console.log("Utilisateur non connecté");
-    // Redirection si nécessaire ou ajustement de l'UI
-    // window.location.href = 'index-no-connexion.html'; // Optionnel
-  }
-});
-
-// Fonction de déconnexion
-const handleLogout = async (e) => {
-  e.preventDefault();
-  try {
-    await signOut(auth);
-    console.log("Déconnexion réussie");
-    window.location.href = 'index-no-connexion.html';
-  } catch (error) {
-    console.error("Erreur lors de la déconnexion:", error);
-  }
-};
-
 export const logoutUser = async () => {
   await signOut(auth);
 };
-
-// Attacher l'événement au bouton de déconnexion s'il existe
-const logoutBtn = document.getElementById('logoutBtn');
-if (logoutBtn) {
-  logoutBtn.addEventListener('click', handleLogout);
-}
 
 // Fonctions exportables pour être utilisées dans d'autres pages (Login/Register)
 export const registerUser = async (email, password) => {
@@ -371,6 +333,30 @@ export const getActiveStories = async () => {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) { console.error("Erreur get stories:", error); return []; }
+};
+
+export const deleteStory = async (storyId) => {
+  try {
+    await deleteDoc(doc(db, "stories", storyId));
+  } catch (error) {
+    console.error("Erreur delete story:", error);
+    throw error;
+  }
+};
+
+/**
+ * Enregistre une vue sur une story (ajoute l'ID user à la liste 'viewers')
+ */
+export const viewStory = async (storyId, userId) => {
+  const storyRef = doc(db, "stories", storyId);
+  try {
+    await updateDoc(storyRef, {
+      viewers: arrayUnion(userId)
+    });
+  } catch (error) {
+    // On ignore silencieusement les erreurs de vue pour ne pas bloquer l'UX
+    console.warn("Erreur view story:", error);
+  }
 };
 
 // --- 4. GESTION DES VIDEOS COURTES (SHORTS) ---
