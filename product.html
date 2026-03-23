@@ -1,23 +1,25 @@
-﻿<!DOCTYPE html>
-<html lang="fr">
+﻿<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Galerie produit - Kome-Gab</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body data-page="product">
 
   <main class="page">
     <section class="panel gallery-container">
-      <h2 id="galleryTitle">Produit</h2>
+      <div style="display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 15px;">
+        <button class="back-button" onclick="history.back()" style="position: absolute; left: 0;"><i class="fas fa-arrow-left"></i></button>
+        <h2 id="galleryTitle" style="margin: 0;">Produit</h2>
+      </div>
       <p id="galleryMeta" class="meta"></p>
       <img id="galleryMainImage" class="gallery-main-image" src="https://placehold.co/900x600?text=Produit" alt="Image principale du produit">
       <div id="galleryThumbnails" class="gallery-thumbnails"></div>
       <p id="galleryDescription" class="meta"></p>
       <div class="row-actions gallery-actions">
-        <a id="galleryWhatsapp" class="link-btn" href="#" target="_blank" rel="noopener">WhatsApp</a>
-        <button id="galleryAddToCart" class="link-btn secondary hidden" type="button">Ajouter au panier</button>
+        <a id="galleryWhatsapp" class="link-btn" href="#" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px;"><i class="fab fa-whatsapp"></i> WhatsApp</a>
         <a id="gallerySource" class="link-btn secondary" href="index.html">Source</a>
       </div>
       <p id="galleryNotFound" class="empty hidden">Produit introuvable.</p>
@@ -27,8 +29,3 @@
   <script type="module" src="js/script.js"></script>
 </body>
 </html>
-
-
-
-
-

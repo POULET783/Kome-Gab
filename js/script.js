@@ -34,13 +34,23 @@ function write(key, value) {
 }
 
 // --- SYSTEME DE CACHE SYNCRO FIREBASE ---
-let cachedProducts = [];
-let cachedShops = [];
+// 1. Initialisation immédiate avec les données locales (LocalStorage)
+let cachedProducts = read(STORAGE_KEYS.products, []);
+let cachedShops = read(STORAGE_KEYS.shops, []);
 
 async function syncData() {
-  cachedProducts = await getAllProducts();
-  cachedShops = await getAllShops();
-  console.log("Données synchronisées depuis Firebase");
+  // 2. Récupération réseau et mise à jour du cache local
+  const products = await getAllProducts();
+  const shops = await getAllShops();
+  
+  // Mise à jour mémoire
+  cachedProducts = products;
+  cachedShops = shops;
+
+  // Mise à jour persistante
+  write(STORAGE_KEYS.products, products);
+  write(STORAGE_KEYS.shops, shops);
+  console.log("Données synchronisées et mises en cache");
 }
 
 function currentUser() {
@@ -1288,7 +1298,7 @@ function renderProductCard(product, opts = {}) {
   }
 
   const shopSnippet = shop
-    ? `<a class="shop-snippet" href="boutique.html?shop=${encodeURIComponent(shop.id)}"><img src="${shopLogoUrl}" alt="${shop.nom}" loading="lazy"><span>${shop.nom}</span></a>`
+    ? `<a class="shop-snippet" href="shop-details.html?id=${encodeURIComponent(shop.id)}"><img src="${shopLogoUrl}" alt="${shop.nom}" loading="lazy"><span>${shop.nom}</span></a>`
     : "";
 
   const cartAction = !normalized.isOccasion
@@ -1508,9 +1518,6 @@ async function setupHome() {
   const empty = document.getElementById("emptyProducts");
   const searchBtn = document.getElementById("searchBtn");
 
-  // S'assurer que les données sont à jour
-  await syncData();
-
   function render() {
     const q = (document.getElementById("searchInput").value || "").trim().toLowerCase();
     const category = document.getElementById("categoryFilter").value;
@@ -1563,9 +1570,6 @@ async function setupDashboard() {
 
   const addProductBtn = document.getElementById("addProductBtn");
   const empty = document.getElementById("emptySellerProducts");
-
-  // Charger les données à jour
-  await syncData();
 
   setupFilesPreview("imageFiles", "imagePreviewList");
 
@@ -1711,8 +1715,6 @@ async function setupBoutiquePage() {
   // Déterminer la page cible (boutique.html ou boutique-no-connexion.html) pour rester cohérent
   const targetPage = document.body.dataset.page === 'boutique-no-connexion' ? 'boutique-no-connexion.html' : 'boutique.html';
 
-  await syncData();
-
   const shops = getShops();
   const products = getProducts().map(mapRegularProduct);
 
@@ -1801,7 +1803,7 @@ async function setupBoutiquePage() {
           <div class="row-actions">
                 ${favBtnStr}
                 <a class="link-btn" href="https://wa.me/${normalizePhone(shop.contact_whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>
-            <a class="link-btn secondary" href="${targetPage}?shop=${encodeURIComponent(shop.id)}">Voir les produits</a>
+            <a class="link-btn secondary" href="shop-details.html?id=${encodeURIComponent(shop.id)}">Visiter la boutique</a>
           </div>
         </div>
       </article>
@@ -2142,8 +2144,6 @@ async function setupProductDetailPage() {
   const page = document.body.dataset.page;
   if (page !== 'product') return;
 
-  await syncData();
-
   function findProduct() {
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
@@ -2194,12 +2194,16 @@ async function setupProductDetailPage() {
 
   const shareDiv = document.createElement("div");
   shareDiv.className = "share-buttons";
+  const btnStyle = "width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: white; text-decoration: none; border: none; cursor: pointer; font-size: 18px; transition: transform 0.2s;";
+
   shareDiv.innerHTML = `
-    <span class="meta" style="margin-right:5px">Partager:</span>
-    <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(currentUrl)}" target="_blank" class="share-btn fb" title="Facebook"><i class="fab fa-facebook-f"></i></a>
-    <a href="https://twitter.com/intent/tweet?url=${encodeURIComponent(currentUrl)}&text=${encodeURIComponent(shareText)}" target="_blank" class="share-btn tw" title="Twitter"><i class="fab fa-twitter"></i></a>
-    <button class="share-btn ig" id="shareIgBtn" title="Copier lien pour Instagram"><i class="fab fa-instagram"></i></button>
-    <button class="share-btn cp" id="shareCpBtn" title="Copier le lien"><i class="fas fa-link"></i></button>
+    <span class="meta" style="margin-right:8px">Partager:</span>
+    <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(currentUrl)}" target="_blank" style="${btnStyle} background-color: #1877f2;" title="Facebook"><i class="fab fa-facebook-f"></i></a>
+    <a href="https://twitter.com/intent/tweet?url=${encodeURIComponent(currentUrl)}&text=${encodeURIComponent(shareText)}" target="_blank" style="${btnStyle} background-color: #000000;" title="X (Twitter)"><i class="fa-brands fa-x-twitter"></i></a>
+    <a href="https://t.me/share/url?url=${encodeURIComponent(currentUrl)}&text=${encodeURIComponent(shareText)}" target="_blank" style="${btnStyle} background-color: #229ED9;" title="Telegram"><i class="fab fa-telegram-plane"></i></a>
+    <button id="shareIgBtn" title="Copier lien pour Instagram" style="${btnStyle} background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%);"><i class="fab fa-instagram"></i></button>
+    <btn id="shareTiktokBtn" title="Copier lien pour TikTok" style="${btnStyle} background-color: #000000;"><i class="fab fa-tiktok"></i></btn>
+    <btn id="shareCpBtn" title="Copier le lien" style="${btnStyle} background-color: #555;"><i class="fas fa-link"></i></btn>
   `;
   
   // Insérer après les métadonnées (Prix • Catégorie)
@@ -2210,6 +2214,7 @@ async function setupProductDetailPage() {
       navigator.clipboard.writeText(currentUrl).then(() => alert("Lien copié ! Vous pouvez le coller sur vos réseaux."));
   };
   shareDiv.querySelector("#shareIgBtn").addEventListener("click", copyLinkAction);
+  shareDiv.querySelector("#shareTiktokBtn").addEventListener("click", copyLinkAction);
   shareDiv.querySelector("#shareCpBtn").addEventListener("click", copyLinkAction);
   
   // --- CHARGEMENT DES AVIS ---
@@ -2551,7 +2556,6 @@ function setupProfilePage() {
   profileCard.parentNode.insertBefore(favoritesContainer, profileCard.nextSibling);
 
   async function renderFavorites() {
-    await syncData();
     const currentUserData = currentUser(); // Recharger les données fraîches
     
     // 1. Produits
@@ -2615,8 +2619,6 @@ async function setupMyProducts() {
   const user = currentUser();
   if (!user) return;
   
-  await syncData();
-
   function renderMyProducts() {
     const occasion = getOccasionProducts().filter(p => p.vendeur_id === user.id).map(mapOccasionToMarketplace);
     const mapped = [...occasion];
@@ -2715,8 +2717,6 @@ async function setupProfileImageModal() {
   // Ajouter les événements click sur toutes les photos de profil
   const profileAvatars = document.querySelectorAll(".profile-avatar");
   const shopLogoDisplay = document.getElementById("shopLogoDisplay");
-
-  await syncData();
   
   profileAvatars.forEach(avatar => {
     avatar.addEventListener("click", (e) => {
@@ -3161,8 +3161,6 @@ async function setupCreateShopPage() {
   const user = requireSeller();
   if (!user) return;
 
-  // Vérifier si la boutique existe déjà
-  await syncData();
   const existingShop = getShops().find(s => s.vendeur_id === user.id);
   
   if (existingShop) {
@@ -3225,6 +3223,173 @@ async function setupCreateShopPage() {
 }
 
 /* ===================================
+   LOGIQUE PAGE DÉTAIL BOUTIQUE (shop-details.html)
+   =================================== */
+async function setupShopDetailsPage() {
+  const page = document.body.dataset.page;
+  if (page !== 'shop-details') return;
+
+  const params = new URLSearchParams(window.location.search);
+  const shopId = params.get("id");
+
+  if (!shopId) {
+    alert("Boutique introuvable");
+    window.location.href = "boutique.html";
+    return;
+  }
+
+  const shops = getShops();
+  const shop = shops.find(s => s.id === shopId);
+
+  if (!shop) {
+    document.body.innerHTML = "<h1 style='text-align:center; margin-top:50px;'>Boutique introuvable ou supprimée.</h1><p style='text-align:center;'><a href='index.html'>Retour à l'accueil</a></p>";
+    return;
+  }
+
+  // 1. Remplissage des infos de la boutique
+  document.title = `${shop.nom} - Kome-Gab`;
+  
+  // Logo
+  const logoImg = document.getElementById("shopLogoImg");
+  if (logoImg && shop.logo) {
+    logoImg.src = optimizeCloudinaryUrl(shop.logo, 100);
+    logoImg.style.cursor = "pointer";
+    logoImg.onclick = () => window.openProfileImageModal(optimizeCloudinaryUrl(shop.logo, 800));
+  }
+
+  // Hero Section
+  document.getElementById("shopNameHero").textContent = shop.nom;
+  document.getElementById("shopDescHero").textContent = shop.description || "Bienvenue dans notre boutique.";
+  
+  // Footer Infos
+  document.getElementById("shopNameFooter").textContent = shop.nom;
+  document.getElementById("shopAddressFooter").textContent = shop.adresse || "";
+  document.getElementById("shopHoursFooter").textContent = shop.horaires || "";
+
+  // Bouton WhatsApp Flottant
+  const waBtn = document.getElementById("shopWhatsappBtn");
+  if (waBtn) {
+    if (shop.contact_whatsapp) {
+      waBtn.href = `https://wa.me/${normalizePhone(shop.contact_whatsapp)}`;
+    } else {
+      waBtn.style.display = 'none';
+    }
+  }
+
+  // Gestion bouton "Suivre" (Follow)
+  const followBtn = document.getElementById("followShopBtn");
+  const user = currentUser();
+  if (user && followBtn) {
+    const isFollowing = (user.favoriteShops || []).includes(shop.id);
+    followBtn.textContent = isFollowing ? "Ne plus suivre" : "Suivre la boutique";
+    followBtn.onclick = async () => {
+      await toggleLike(shop.id, 'shop');
+      const updatedUser = currentUser(); // Recharger user local mis à jour par toggleLike
+      const newStatus = (updatedUser.favoriteShops || []).includes(shop.id);
+      followBtn.textContent = newStatus ? "Ne plus suivre" : "Suivre la boutique";
+    };
+  } else if (followBtn) {
+    followBtn.onclick = () => window.location.href = "login.html";
+  }
+
+  // Gestion bouton "Partager"
+  const shareBtn = document.getElementById("shareShopBtn");
+  if (shareBtn) {
+    shareBtn.onclick = () => {
+      const currentUrl = window.location.href;
+      if (navigator.share) {
+        navigator.share({
+          title: shop.nom,
+          text: `Découvrez la boutique ${shop.nom} sur Kome-Gab !`,
+          url: currentUrl
+        }).catch(console.error);
+      } else {
+        navigator.clipboard.writeText(currentUrl).then(() => {
+          alert("Lien de la boutique copié !");
+        });
+      }
+    };
+  }
+
+  // 2. Affichage des produits
+  const productsGrid = document.getElementById("productsGrid");
+  const allProducts = getProducts().map(mapRegularProduct);
+  const shopProducts = allProducts.filter(p => p.shopId === shop.id || p.boutique_id === shop.id);
+
+  function renderShopProducts(list) {
+    if (list.length === 0) {
+      productsGrid.innerHTML = `<p style="grid-column: 1/-1; text-align:center; padding: 40px;">Aucun produit disponible pour le moment.</p>`;
+      return;
+    }
+
+    productsGrid.innerHTML = list.map(p => {
+      const imgUrl = optimizeCloudinaryUrl(p.image || PLACEHOLDER_IMAGE, 400);
+      
+      const whatsappOrderMessage = buildOrderMessage("standard", {
+        name: p.name,
+        price: p.price,
+        quantity: 1,
+        image: p.image,
+        shopId: p.shopId,
+        phone: p.phone
+      });
+      const whatsappHref = `https://wa.me/${normalizePhone(p.phone)}?text=${encodeURIComponent(whatsappOrderMessage)}`;
+
+      return `
+        <div class="shop-product-card">
+          <a href="product.html?id=${p.id}&origin=regular" style="text-decoration:none; color:inherit;">
+            <img src="${imgUrl}" class="shop-product-img" alt="${p.name}">
+            <h3 class="shop-product-title">${p.name}</h3>
+            <p class="shop-product-price">${formatPrice(p.price)}</p>
+          </a>
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+             <a href="${whatsappHref}" target="_blank" class="shop-btn-small" style="background:#25D366; text-align:center; flex:1; display: flex; align-items: center; justify-content: center; gap: 5px;"><i class="fab fa-whatsapp"></i> Commander</a>
+             <button class="shop-btn-small" style="flex:1; padding: 8px 5px; display: flex; align-items: center; justify-content: center; gap: 5px;" onclick="event.preventDefault(); window.addToCartFromId('${p.id}')"><i class="fas fa-shopping-cart"></i> Panier</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+  
+  // Exposer une fonction helper pour le onclick inline
+  window.addToCartFromId = (id) => {
+      const p = shopProducts.find(x => x.id === id);
+      if(p) addToCart(p);
+  };
+
+  renderShopProducts(shopProducts);
+
+  // 3. Recherche interne
+  const searchInput = document.getElementById("shopSearchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      const term = e.target.value.toLowerCase();
+      const filtered = shopProducts.filter(p => p.name.toLowerCase().includes(term));
+      renderShopProducts(filtered);
+    });
+  }
+}
+
+/**
+ * Fonction utilitaire pour lancer le setup de la page courante
+ * Permet de rafraichir l'interface après la synchro réseau
+ */
+function runPageSetup(pageName) {
+    switch (pageName) {
+      case 'home': case 'home-no-connexion': setupHome(); break;
+      case 'dashboard': setupDashboard(); setupSellerShop(); break;
+      case 'boutique': case 'boutique-no-connexion': setupBoutiquePage(); break;
+      case 'occasion': case 'occasion-no-connexion': setupOccasionPage(); break;
+      case 'product': setupProductDetailPage(); break;
+      case 'shop-details': setupShopDetailsPage(); break;
+      case 'profile': setupProfilePage(); break; // Inclut renderFavorites et MyProducts
+      case 'create-shop': setupCreateShopPage(); break;
+      case 'publication': setupPublication(); break;
+      case 'videos': case 'videos-no-connexion': setupVideosPage(); break;
+    }
+}
+
+/* ===================================
    INITIALISATION PRINCIPALE
    =================================== */
 async function bootstrap() {
@@ -3276,9 +3441,6 @@ async function bootstrap() {
     }
   }
 
-  // Chargement global initial des données Firestore
-  await syncData();
-
   ensureMenu();
   highlightActiveMenu(); // Active l'icône de la page courante
   updateAuthLink();
@@ -3287,19 +3449,20 @@ async function bootstrap() {
   setupPasswordToggle();
   setupPasswordValidation();
   setupStories(); // Initialisation des stories
-  setupHome();
-  setupDashboard();
-  setupSellerShop(); // Initialisation de la gestion boutique (dashboard/profile)
-  setupBoutiquePage();
-  setupPublication();
-  setupVideosPage();
-  setupOccasionPage();
-  setupProductDetailPage();
   setupCartPage();
-  setupCreateShopPage();
-  setupProfilePage();
   setupSidebarCart(); // Ajout du panier latéral
   updateCartCountUI();
+
+  // 1. Rendu immédiat avec le cache (Rapide ⚡)
+  runPageSetup(page);
+
+  // 2. Synchronisation réseau en arrière-plan (Invisible ☁️)
+  // Une fois terminé, on relance le setup pour afficher les nouveautés
+  syncData().then(() => {
+      // Petit log pour debug
+      // console.log("Mise à jour de l'interface avec les données fraîches");
+      runPageSetup(page);
+  }).catch(err => console.error("Erreur sync background:", err));
 }
 
 document.addEventListener("DOMContentLoaded", bootstrap);
