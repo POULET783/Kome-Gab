@@ -8,21 +8,24 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body data-page="register">
-  <header class="topbar">
-    <a class="brand-logo" href="index-no-connexion.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
-    <a class="link-btn" href="login.html">Connexion</a>
-  </header>
 
-  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
-    <a href="index-no-connexion.html">Accueil</a>
-    <a href="videos-no-connexion.html">Vidéos</a>
-    <a href="occasion-no-connexion.html">Occasion</a>
-    <a href="boutique-no-connexion.html">Boutiques</a>
-  </nav>
+    <header class="site-header">
+      <div class="container header-inner">
+        <img src="images/logo.png" alt="Logo" class="logo" />
+        <div class="brand">
+          <p class="tagline">Créez votre compte et accéder à votre espace</p>
+        </div>
+      </div>
+    </header>
 
   <main class="page">
     <section class="panel form">
-      <h2>Inscription</h2>
+      <div class="form-header">
+        <button class="back-button" onclick="history.back()" title="Retour">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <h2>Inscription</h2>
+      </div>
 
       <label for="name">Nom</label>
       <input id="name" placeholder="Votre nom">
@@ -68,13 +71,10 @@
       </select>
 
       <button id="registerBtn">Créer le compte</button>
+      <p class="small">Vous avez déjà un compte ? <a href="login.html">Connectez-vous</a></p>
     </section>
   </main>
 
   <script type="module" src="js/script.js"></script>
 </body>
 </html>
-
-
-
-

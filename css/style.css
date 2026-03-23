@@ -45,8 +45,8 @@ body {
   gap: 12px;
   padding: 12px 14px;
   color: #fff;
-  background: linear-gradient(135deg, #0e1f3f 0%, #152c55 45%, #1c3d6e 100%);
-  box-shadow: 0 8px 22px rgba(12, 28, 55, 0.3);
+  background: rgb(12, 28, 55);
+  box-shadow: none; /* Suppression de l'ombre pour fusionner avec le menu */
   position: sticky;
   top: 0;
   z-index: 50;
@@ -418,7 +418,7 @@ button,
 }
 
 .menu-btn {
-  background: rgba(255, 255, 255, 0.13);
+  background: rgba(35, 41, 55, 0.13);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.28);
 }
@@ -427,7 +427,7 @@ button,
 .link-btn {
   background: linear-gradient(180deg, var(--primary-2) 0%, var(--primary) 100%);
   color: #fff;
-  box-shadow: 0 6px 14px rgba(255, 106, 0, 0.35);
+  /* box-shadow: 0 6px 14px rgba(255, 106, 0, 0.35); */
 }
 
 button:hover,
@@ -459,23 +459,19 @@ button:active,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  background: linear-gradient(180deg, #132a4e 0%, #1b3a69 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgb(12, 28, 55);
+  box-shadow: 0 8px 22px rgba(12, 28, 55, 0.3); /* L'ombre passe ici */
   padding: 10px 14px 14px;
+  position: sticky;
+  top: 62px; /* Hauteur desktop pour coller sous le header */
+  z-index: 49;
 }
 
 .mobile-menu.open {
   display: flex;
 }
 
-.mobile-menu a {
-  text-decoration: none;
-  color: #f3f7ff;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.17);
-  border-radius: 10px;
-  padding: 9px 10px;
-}
+
 
 .site-logo {
   width: 122px;
@@ -574,6 +570,30 @@ button:active,
   display: grid;
   gap: 8px;
 }
+
+/* Header pour les formulaires de login/register */
+.form-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.form-header h2 {
+  margin: 0;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+.back-button:hover { background-color: #f0f0f0; }
 
 input,
 select,
@@ -779,7 +799,7 @@ textarea:focus {
 
 .clamp-two {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -939,7 +959,7 @@ textarea:focus {
   height: 128px;
   margin: 0 auto;
   border-radius: 50%;
-  border: 4px solid #d9f3e9;
+  border: 4px solid #1b204a;
   overflow: hidden;
 }
 
@@ -1122,6 +1142,10 @@ textarea:focus {
 }
 
 @media (max-width: 768px) {
+  .mobile-menu {
+    top: 52px; /* Ajustement hauteur sticky pour mobile */
+  }
+
   .topbar {
     padding: 10px;
 }
@@ -2291,4 +2315,93 @@ body.cart-open {
   width: auto !important;
   justify-self: start;
   transform: none !important;
+}
+
+
+.mobile-menu {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.mobile-menu a {
+    font-size: 22px;
+    color: #ffffff;
+}
+
+.mobile-menu a:hover {
+    color: #d7dadd;
+}
+
+
+.header-inner{display:flex;align-items:center;gap:14px;padding:18px 20px;max-width:920px;margin:0 auto}
+.logo{width:820px;height:62px;object-fit:contain;border-radius:10px}
+.brand h1{margin:0;font-size:1.25rem}
+.tagline{margin:4px 0 0 0;color:var(--muted);font-size:0.95rem}
+/* Keep header (logo) visible when Google CSE or other overlays appear */
+.site-header{position:relative;top:0;z-index:2000}
+.site-header, .header-inner{background:linear-gradient(90deg,#ffffff 0%, #f7fbff 100%, 0.3)}
+
+.logo {
+    position: relative;
+    right: 50px; /* décale vers la droite */
+}
+
+/* ===================================
+   BOUTONS DE PARTAGE SOCIAL
+   =================================== */
+.share-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 15px 0;
+  flex-wrap: wrap;
+}
+
+.share-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: white !important;
+  font-size: 1rem;
+  transition: transform 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.share-btn:hover { transform: scale(1.1); filter: brightness(1.1); }
+.share-btn.fb { background: #1877f2; }
+.share-btn.tw { background: #1da1f2; } /* X / Twitter */
+.share-btn.ig { background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%); }
+.share-btn.cp { background: #555; }
+
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: rgb(12, 28, 55);
+    color: white;
+    border-radius: 12px;
+}
+
+.back-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+.back-btn i {
+    width: 28px;
+    height: 28px;
+}
+
+/* Indication de la page active dans le menu */
+.mobile-menu a.active, .mobile-menu a.active i {
+    color: #168fe5;
 }

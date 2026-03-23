@@ -33,10 +33,6 @@ function write(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function uid(prefix) {
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-}
-
 // --- SYSTEME DE CACHE SYNCRO FIREBASE ---
 let cachedProducts = [];
 let cachedShops = [];
@@ -59,6 +55,31 @@ function ensureMenu() {
   toggle.addEventListener("click", () => {
     const open = menu.classList.toggle("open");
     menu.setAttribute("aria-hidden", open ? "false" : "true");
+  });
+}
+
+function highlightActiveMenu() {
+  const menu = document.getElementById("mobileMenu");
+  if (!menu) return;
+
+  const currentFile = window.location.pathname.split("/").pop();
+  const links = menu.querySelectorAll("a");
+
+  links.forEach(link => {
+    const href = link.getAttribute("href");
+    if (!href) return;
+
+    let isActive = false;
+
+    // Correspondance exacte (ex: videos.html === videos.html)
+    if (currentFile === href) isActive = true;
+
+    // Cas particuliers pour l'accueil (home.html contient souvent un lien vers index.html)
+    if ((currentFile === "home.html" || currentFile === "") && href === "index.html") isActive = true;
+
+    if (isActive) {
+      link.classList.add("active");
+    }
   });
 }
 
@@ -145,6 +166,17 @@ function normalizeImageArray(images, fallbackImage) {
 }
 
   return Array.from(new Set(result));
+}
+
+// --- OPTIMISATION DES IMAGES CLOUDINARY ---
+function optimizeCloudinaryUrl(url, width = 500) {
+  if (!url || typeof url !== "string") return "";
+  // Si ce n'est pas une URL Cloudinary ou si c'est un placeholder, on retourne tel quel
+  if (!url.includes("res.cloudinary.com") || url.includes("placehold.co")) return url;
+  
+  // On injecte les paramètres de transformation : format auto, qualité auto, redimensionnement
+  // 'c_limit' assure qu'on n'agrandit pas une image si elle est plus petite que la cible
+  return url.replace("/upload/", `/upload/f_auto,q_auto,w_${width},c_limit/`);
 }
 
 function fileToDataUrl(file) {
@@ -341,10 +373,11 @@ function initializeSmartWagon() {
     itemsList.innerHTML = items.map((item, index) => {
       const lineTotal = Number(item.price || 0) * Number(item.quantity || 1);
       const productUrl = `product.html?id=${encodeURIComponent(item.productId)}&origin=regular`;
+      const optimizedImage = optimizeCloudinaryUrl(item.image || PLACEHOLDER_IMAGE, 100); // Miniature 100px
       return `
         <li>
           <a href="${productUrl}" class="cart-item-link">
-            <img src="${item.image || PLACEHOLDER_IMAGE}" alt="${item.name}">
+            <img src="${optimizedImage}" alt="${item.name}" loading="lazy">
           </a>
           <div class="cart-item-details">
             <h4><a href="${productUrl}" class="cart-item-name-link">${item.name}</a></h4>
@@ -794,6 +827,9 @@ async function setupStories() {
       storyThumbnail = latestStory.mediaUrl.replace(/\.[^/.]+$/, ".jpg");
     }
 
+    // Optimisation de la miniature story (100px suffisent pour le cercle)
+    storyThumbnail = optimizeCloudinaryUrl(storyThumbnail, 150);
+
     myStoryHtml = `
       <div class="story-item" id="myStoryBtn">
         <div class="story-ring">
@@ -836,6 +872,9 @@ async function setupStories() {
       }
     }
     
+    // Optimisation de l'avatar/miniature story
+    img = optimizeCloudinaryUrl(img, 150);
+
     otherStoriesHtml += `
       <div class="story-item view-story" data-userid="${userId}">
         <div class="story-ring">
@@ -1126,7 +1165,10 @@ function buildOccasionWhatsappMessage(product) {
 function renderProductCard(product, opts = {}) {
   const normalized = product.isOccasion ? mapOccasionToMarketplace(product) : mapRegularProduct(product);
   const images = normalizeImageArray(normalized.images, normalized.image);
-  const coverImage = images[0] || PLACEHOLDER_IMAGE;
+  
+  // Optimisation de l'image de couverture (400px de large suffit pour les cartes)
+  const coverImage = optimizeCloudinaryUrl(images[0] || PLACEHOLDER_IMAGE, 400);
+  
   const shopParam = normalized.shopId ? `?shop=${encodeURIComponent(normalized.shopId)}` : "";
   const isSold = normalized.status === "sold";
   const galleryUrl = getProductDetailUrl(normalized);
@@ -1150,8 +1192,13 @@ function renderProductCard(product, opts = {}) {
     ? getShops().find((s) => s.id === normalized.shopId || s.id === normalized.boutique_id)
     : null;
 
+  let shopLogoUrl = shop ? (shop.logo || "https://placehold.co/50x50/ff6a00/ffffff?text=K") : "";
+  if (shopLogoUrl) {
+     shopLogoUrl = optimizeCloudinaryUrl(shopLogoUrl, 80); // Petit logo optimisé
+  }
+
   const shopSnippet = shop
-    ? `<a class="shop-snippet" href="boutique.html?shop=${encodeURIComponent(shop.id)}"><img src="${shop.logo || "https://placehold.co/50x50/ff6a00/ffffff?text=K"}" alt="${shop.nom}"><span>${shop.nom}</span></a>`
+    ? `<a class="shop-snippet" href="boutique.html?shop=${encodeURIComponent(shop.id)}"><img src="${shopLogoUrl}" alt="${shop.nom}" loading="lazy"><span>${shop.nom}</span></a>`
     : "";
 
   const cartAction = !normalized.isOccasion
@@ -1174,7 +1221,7 @@ function renderProductCard(product, opts = {}) {
     <article class="card compact-card">
       <a class="card-image-link" href="${galleryUrl}">
         ${likeBtn}
-        <img src="${coverImage}" alt="${normalized.name}">
+        <img src="${coverImage}" alt="${normalized.name}" loading="lazy" decoding="async">
       </a>
       <div class="card-body">
         ${shopSnippet}
@@ -1195,48 +1242,24 @@ function renderProductCard(product, opts = {}) {
     </article>
   `;
 }
-function getUsers() {
-  // Les utilisateurs sont gérés par Auth, on garde ça simple pour l'instant
-  return read(STORAGE_KEYS.users, []);
-}
-
-function saveUsers(users) {
-  // Obsolète avec Firebase Auth, mais gardé pour compatibilité locale temporaire
-  write(STORAGE_KEYS.users, users);
-}
 
 function getProducts() {
   // Retourne les produits qui NE SONT PAS d'occasion (donc boutiques)
   return cachedProducts.filter(p => p.category !== 'Occasion');
 }
 
-function saveProducts(products) {
-  write(STORAGE_KEYS.products, products);
-  // Cette fonction locale est remplacée par saveProductToFirestore
+function getMarketplaceProducts() {
+  const regular = getProducts().map(mapRegularProduct);
+  const occasion = getOccasionProducts().map(mapOccasionToMarketplace);
+  return [...regular, ...occasion];
 }
 
 function getShops() {
   return cachedShops;
 }
 
-function saveShops(shops) {
-  write(STORAGE_KEYS.shops, shops);
-  // Remplacée par saveShopToFirestore
-}
-
 function getOccasionProducts() {
   return cachedProducts.filter(p => p.category === 'Occasion');
-}
-
-function saveOccasionProducts(products) {
-  write(STORAGE_KEYS.occasionProducts, products);
-  // Remplacée par saveOccasionProduct (déjà dans setupPublication)
-}
-
-function getMarketplaceProducts() {
-  const regular = getProducts().map(mapRegularProduct);
-  const occasion = getOccasionProducts().map(mapOccasionToMarketplace);
-  return [...regular, ...occasion];
 }
 
 function setupRegister() {
@@ -1283,9 +1306,6 @@ function setupRegister() {
       };
 
       await saveUserToFirestore(firebaseUser, userData);
-      
-      // On garde une copie locale pour que le reste du site fonctionne sans refonte totale
-      write(STORAGE_KEYS.loggedUser, userData);
       
       alert("Compte créé avec succès.");
       if (role === "seller") {
@@ -1423,11 +1443,12 @@ async function setupHome() {
   }
 
   searchBtn?.addEventListener("click", render);
-  document.getElementById("searchInput")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      render();
-    }
-  });
+  
+  // Instant Search : on filtre dès que l'utilisateur tape quelque chose
+  const searchInput = document.getElementById("searchInput");
+  searchInput?.addEventListener("input", render);
+  searchInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") render(); });
+
   document.getElementById("categoryFilter")?.addEventListener("change", render);
   document.getElementById("maxPriceFilter")?.addEventListener("input", render);
   render();
@@ -1476,7 +1497,6 @@ async function setupDashboard() {
         const target = all.find((p) => p.id === id);
         if (!target) return;
         target.status = target.status === "sold" ? "available" : "sold";
-        saveProducts(all);
         renderSellerProducts();
         
         const newStatus = target.status === "sold" ? "available" : "sold";
@@ -1491,9 +1511,7 @@ async function setupDashboard() {
       btn.addEventListener("click", () => {
         if (!confirm("Voulez-vous vraiment supprimer ce produit ?")) return;
         const id = btn.getAttribute("data-id");
-        const all = getProducts();
-        const filtered = all.filter((p) => p.id !== id);
-        saveProducts(filtered);
+        // Pas besoin de sauvegarder localement, syncData s'en chargera après
         renderSellerProducts();
         deleteProductFirestore(id).then(async () => {
             await syncData();
@@ -1679,9 +1697,12 @@ async function setupBoutiquePage() {
         const isFav = user && user.favoriteShops && user.favoriteShops.includes(shop.id);
         const favBtnStr = user ? `<button class="like-btn ${isFav ? 'active' : ''}" data-id="${shop.id}" data-type="shop" style="position:static; width:auto; height:auto; background:none; box-shadow:none;">${isFav ? '♥ Suivi' : '♡ Suivre'}</button>` : '';
 
+        // Optimisation image boutique
+        const shopImg = optimizeCloudinaryUrl(shop.logo || "https://placehold.co/640x360?text=Boutique", 400);
+
     return `
           <article class="card compact-card">
-            <img src="${shop.logo || "https://placehold.co/640x360?text=Boutique"}" alt="${shop.nom}">
+            <img src="${shopImg}" alt="${shop.nom}" loading="lazy" decoding="async">
         <div class="card-body">
           <h4>${shop.nom}</h4>
               <p class="meta clamp-two">${shop.description || "Sans description"}</p>
@@ -2072,6 +2093,34 @@ async function setupProductDetailPage() {
 
   title.textContent = product.name;
   meta.textContent = `${formatPrice(product.price)} • ${product.category || "Autre"} • ${product.status === "sold" ? "Vendu" : "Disponible"}`;
+
+  // --- PARTAGE SOCIAL ---
+  const currentUrl = window.location.href;
+  const shareText = `Regarde ça : ${product.name} sur Kome-Gab`;
+  
+  // Supprimer les anciens boutons s'ils existent déjà (évite les doublons)
+  const oldShare = document.querySelector(".share-buttons");
+  if(oldShare) oldShare.remove();
+
+  const shareDiv = document.createElement("div");
+  shareDiv.className = "share-buttons";
+  shareDiv.innerHTML = `
+    <span class="meta" style="margin-right:5px">Partager:</span>
+    <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(currentUrl)}" target="_blank" class="share-btn fb" title="Facebook"><i class="fab fa-facebook-f"></i></a>
+    <a href="https://twitter.com/intent/tweet?url=${encodeURIComponent(currentUrl)}&text=${encodeURIComponent(shareText)}" target="_blank" class="share-btn tw" title="Twitter"><i class="fab fa-twitter"></i></a>
+    <button class="share-btn ig" id="shareIgBtn" title="Copier lien pour Instagram"><i class="fab fa-instagram"></i></button>
+    <button class="share-btn cp" id="shareCpBtn" title="Copier le lien"><i class="fas fa-link"></i></button>
+  `;
+  
+  // Insérer après les métadonnées (Prix • Catégorie)
+  meta.parentNode.insertBefore(shareDiv, meta.nextSibling);
+
+  // Logique pour copier le lien (Instagram & Copier)
+  const copyLinkAction = () => {
+      navigator.clipboard.writeText(currentUrl).then(() => alert("Lien copié ! Vous pouvez le coller sur vos réseaux."));
+  };
+  shareDiv.querySelector("#shareIgBtn").addEventListener("click", copyLinkAction);
+  shareDiv.querySelector("#shareCpBtn").addEventListener("click", copyLinkAction);
   
   // --- CHARGEMENT DES AVIS ---
   const reviews = await getReviews(product.id);
@@ -2105,11 +2154,16 @@ async function setupProductDetailPage() {
     }
   }
 
-  description.textContent = product.description || "Sans description";
-  mainImage.src = galleryImages[0];
+  description.textContent = product.description || "Sans description";  
+  // Pour l'image principale de la galerie, on veut une bonne qualité (800px)
+  mainImage.src = optimizeCloudinaryUrl(galleryImages[0], 800);
 
   thumbnails.innerHTML = galleryImages
-    .map((src, index) => `<img class="gallery-thumb ${index === 0 ? "active" : ""}" src="${src}" data-src="${src}" alt="Image ${index + 1}">`)
+    .map((src, index) => {
+        const thumbUrl = optimizeCloudinaryUrl(src, 150); // Miniature optimisée
+        const fullUrl = optimizeCloudinaryUrl(src, 800);  // URL HD pour le clic
+        return `<img class="gallery-thumb ${index === 0 ? "active" : ""}" src="${thumbUrl}" data-src="${fullUrl}" alt="Image ${index + 1}">`;
+    })
     .join("");
 
   thumbnails.querySelectorAll(".gallery-thumb").forEach((thumb) => {
@@ -2254,6 +2308,7 @@ function setupProfilePage() {
   const editProfileBtn = document.getElementById("editProfileBtn");
   const cancelProfileBtn = document.getElementById("cancelProfileBtn");
   const deleteAccountBtn = document.getElementById("deleteAccountBtn");
+  const deconnexionBtn = document.getElementById("deconnexionBtn");
     
   if (!profileForm) {
     return;
@@ -2366,25 +2421,21 @@ function setupProfilePage() {
       if (confirm("⚠️ ATTENTION : Cette action est irréversible.\n\nVoulez-vous vraiment supprimer votre compte ?\nCela effacera définitivement votre profil, votre boutique et tous vos produits.")) {
         const userId = logged.id;
 
-        // 1. Supprimer l'utilisateur
-        const users = getUsers().filter((u) => u.id !== userId);
-        saveUsers(users);
-
-        // 2. Supprimer la boutique associée
-        const shops = getShops().filter((s) => s.vendeur_id !== userId);
-        saveShops(shops);
-
-        // 3. Supprimer les produits et annonces
-        const products = getProducts().filter((p) => p.vendeur_id !== userId);
-        saveProducts(products);
-        
-        const occasions = getOccasionProducts().filter((p) => p.vendeur_id !== userId);
-        saveOccasionProducts(occasions);
-
         // 4. Déconnexion et redirection
         write(STORAGE_KEYS.loggedUser, null);
         alert("Votre compte a été supprimé avec succès.");
         window.location.href = "index.html";
+      }
+    });
+  }
+
+  // Gestion de la déconnexion depuis le profil
+  if (deconnexionBtn) {
+    deconnexionBtn.addEventListener("click", async () => {
+      if (confirm("Voulez-vous vraiment vous déconnecter ?")) {
+        await logoutUser();
+        write(STORAGE_KEYS.loggedUser, null);
+        window.location.href = "index-no-connexion.html";
       }
     });
   }
@@ -2500,7 +2551,6 @@ async function setupMyProducts() {
         
         if (targetRegular) {
           targetRegular.status = targetRegular.status === "sold" ? "available" : "sold";
-          saveProducts(allRegular);
         } else {
           // Sinon vérifier les produits d'occasion
           const allOccasion = getOccasionProducts();
@@ -2508,7 +2558,6 @@ async function setupMyProducts() {
           if (targetOccasion) {
             // Mettre à jour le statut (utiliser 'status' pour la cohérence, même si 'statut' existe parfois)
             targetOccasion.status = targetOccasion.status === "sold" ? "available" : "sold";
-            saveOccasionProducts(allOccasion);
           }
         }
         renderMyProducts();
@@ -2523,15 +2572,6 @@ async function setupMyProducts() {
         const id = btn.getAttribute("data-id");
         const origin = btn.getAttribute("data-origin");
 
-        if (origin === 'occasion') {
-          const all = getOccasionProducts();
-          const filtered = all.filter(p => p.id !== id);
-          saveOccasionProducts(filtered);
-        } else {
-          const all = getProducts();
-          const filtered = all.filter(p => p.id !== id);
-          saveProducts(filtered);
-        }
         renderMyProducts();
         deleteProductFirestore(id).then(async () => {
             await syncData();
@@ -3131,6 +3171,8 @@ async function bootstrap() {
     // L'utilisateur n'est PAS connecté : protection des pages membres
     switch (page) {
       case 'home':        // home.html
+        window.location.href = 'index-no-connexion.html';
+        return;
       case 'occasion':    // occasion.html
       case 'boutique':    // boutique.html
       case 'dashboard':   // dashboard.html
@@ -3148,6 +3190,7 @@ async function bootstrap() {
   await syncData();
 
   ensureMenu();
+  highlightActiveMenu(); // Active l'icône de la page courante
   updateAuthLink();
   setupRegister();
   setupLogin();
