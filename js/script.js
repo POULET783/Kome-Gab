@@ -16,6 +16,10 @@ const STORAGE_KEYS = {
   cart: "mg_cart"
 };
 
+// CONFIGURATION EMAILJS
+const EMAIL_SERVICE_ID = "service_02gpcxp";   // À REMPLACER
+const EMAIL_TEMPLATE_ID = "template_6qkt2ys"; // À REMPLACER
+
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGES_PER_PRODUCT = 8;
 const PLACEHOLDER_IMAGE = "https://placehold.co/640x360?text=Produit";
@@ -33,6 +37,25 @@ function write(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+// --- FONCTION EMAIL LOG ---
+function sendEmailLog(type, id, publicId) {
+  if (!window.emailjs) {
+    console.warn("EmailJS non chargé.");
+    return;
+  }
+
+  const templateParams = {
+    type: type,         // "Produit", "Boutique", "Compte"
+    id: id,             // ID de l'élément concerné
+    publicId: publicId, // Email ou ID de l'utilisateur qui fait l'action
+    date: new Date().toLocaleString("fr-FR")
+  };
+
+  emailjs.send(EMAIL_SERVICE_ID, EMAIL_TEMPLATE_ID, templateParams)
+    .then(() => console.log(`Email log envoyé : ${type} - ${id}`))
+    .catch((err) => console.error("Erreur envoi email log:", err));
+}
+
 // --- SYSTEME DE CACHE SYNCRO FIREBASE ---
 // 1. Initialisation immédiate avec les données locales (LocalStorage)
 let cachedProducts = read(STORAGE_KEYS.products, []);
@@ -43,14 +66,20 @@ async function syncData() {
   const products = await getAllProducts();
   const shops = await getAllShops();
   
-  // Mise à jour mémoire
-  cachedProducts = products;
-  cachedShops = shops;
-
-  // Mise à jour persistante
-  write(STORAGE_KEYS.products, products);
-  write(STORAGE_KEYS.shops, shops);
-  console.log("Données synchronisées et mises en cache");
+  // Mise à jour mémoire et persistante uniquement si la récupération a réussi (non null)
+  if (products !== null) {
+    cachedProducts = products;
+    write(STORAGE_KEYS.products, products);
+  } else {
+    console.warn("Échec récupération produits, utilisation du cache existant.");
+  }
+  
+  if (shops !== null) {
+    cachedShops = shops;
+    write(STORAGE_KEYS.shops, shops);
+  }
+  
+  console.log("Synchronisation terminée.");
 }
 
 function currentUser() {
@@ -1595,6 +1624,7 @@ async function setupDashboard() {
         
         const newStatus = target.status === "sold" ? "available" : "sold";
         updateProductFirestore(id, { status: newStatus }).then(async () => {
+            sendEmailLog("Produit (Update Status)", id, user.email || user.id);
             await syncData();
             renderSellerProducts();
         });
@@ -1608,6 +1638,7 @@ async function setupDashboard() {
         // Pas besoin de sauvegarder localement, syncData s'en chargera après
         renderSellerProducts();
         deleteProductFirestore(id).then(async () => {
+            sendEmailLog("Produit (Delete)", id, user.email || user.id);
             await syncData();
             renderSellerProducts();
         });
@@ -2517,6 +2548,7 @@ function setupProfilePage() {
         const userId = logged.id;
 
         // 4. Déconnexion et redirection
+        sendEmailLog("Compte (Delete)", userId, logged.email || logged.nom);
         write(STORAGE_KEYS.loggedUser, null);
         alert("Votre compte a été supprimé avec succès.");
         window.location.href = "index.html";
@@ -2537,143 +2569,359 @@ function setupProfilePage() {
 
   render(logged);
 
-  // --- SECTION FAVORIS ---
-  const favoritesContainer = document.createElement("section");
-  favoritesContainer.className = "panel";
-  favoritesContainer.innerHTML = `
-    <h2>Mes Favoris</h2>
-    <h3>Produits aimés</h3>
-    <div id="likedProductsList" class="cards" style="margin-bottom: 20px;"></div>
-    <p id="emptyLikedProducts" class="empty">Aucun produit en favori.</p>
-    
-    <h3>Boutiques suivies</h3>
-    <div id="followedShopsList" class="cards"></div>
-    <p id="emptyFollowedShops" class="empty">Aucune boutique suivie.</p>
-  `;
+  // --- GESTION DU DASHBOARD (ONGLÉS) ---
+  const grid = document.getElementById("profileGrid");
+  const emptyMsg = document.getElementById("profileEmptyMsg");
+  const tabs = document.querySelectorAll(".profile-tab");
+  const cancelBulkBtn = document.getElementById("cancelBulkBtn");
+  const selectAllBtn = document.getElementById("selectAllBtn");
+  const bulkBar = document.getElementById("bulkActionsBar");
+  const bulkBtn = document.getElementById("bulkActionBtn");
+  const selectedCountEl = document.getElementById("selectedCount");
+  const globalOptionsMenu = document.getElementById("globalOptionsMenu");
   
-  // Insérer après la section profil (avant "Mes produits")
-  const profileCard = document.querySelector(".profile-card");
-  profileCard.parentNode.insertBefore(favoritesContainer, profileCard.nextSibling);
+  let currentTab = "products";
+  let isSelectionMode = false;
+  
+  // Fonction pour charger le contenu de la grille
+  function loadTabContent(tabName) {
+    currentTab = tabName;
+    isSelectionMode = false; // Reset mode selection
+    updateSelectionUI();
 
-  async function renderFavorites() {
-    const currentUserData = currentUser(); // Recharger les données fraîches
+    const user = currentUser();
+    grid.innerHTML = "";
+    emptyMsg.style.display = "none";
+    let itemsHTML = "";
+    let isEmpty = true;
     
-    // 1. Produits
-    const likedIds = currentUserData.likedProducts || [];
-    const allProducts = getMarketplaceProducts();
-    const likedProducts = allProducts.filter(p => likedIds.includes(p.id));
-    
-    const productsContainer = document.getElementById("likedProductsList");
-    const emptyProducts = document.getElementById("emptyLikedProducts");
-    
-    productsContainer.innerHTML = likedProducts.map(p => renderProductCard(p)).join("");
-    emptyProducts.style.display = likedProducts.length ? "none" : "block";
-    bindAddToCartButtons(productsContainer); // Activer les boutons like/cart
+    // Config boutons
+    let actionLabel = "";
+    let actionType = "";
 
-    // 2. Boutiques
-    const favShopIds = currentUserData.favoriteShops || [];
-    const allShops = getShops();
-    const favShops = allShops.filter(s => favShopIds.includes(s.id));
-    
-    const shopsContainer = document.getElementById("followedShopsList");
-    const emptyShops = document.getElementById("emptyFollowedShops");
+    if (tabName === "products") {
+      // --- MES PRODUITS (Occasion) ---
+      actionLabel = "Supprimer";
+      actionType = "delete";
+      bulkBtn.textContent = "Supprimer la sélection";
+      
+      const occasion = getOccasionProducts().filter(p => p.vendeur_id === user.id).map(mapOccasionToMarketplace);
+      
+      if (occasion.length > 0) {
+        isEmpty = false;
+        itemsHTML = occasion.map(p => {
+          const img = optimizeCloudinaryUrl(p.image || PLACEHOLDER_IMAGE, 300); // 300px suffisant pour grille
+          const badge = p.status === 'sold' ? '<span class="grid-badge">Vendu</span>' : '';
+          return `
+            <div class="profile-grid-item" data-id="${p.id}">
+              <a href="product.html?id=${p.id}&origin=occasion" class="grid-link">
+                ${badge}
+                <img src="${img}" alt="${p.name}" loading="lazy">
+              </a>
+              <button class="grid-options-btn" data-id="${p.id}"><i class="fa-solid fa-ellipsis-vertical"></i></button>
 
-    // Réutilisation simple du snippet boutique ou carte simplifiée
-    shopsContainer.innerHTML = favShops.map(s => `
-      <div class="card compact-card" style="text-align:center; padding:10px;">
-        <a href="boutique.html?shop=${s.id}">
-          <img src="${s.logo || "https://placehold.co/100x100"}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; margin:0 auto 10px;">
-          <h4>${s.nom}</h4>
-        </a>
-        <button class="like-btn active" data-id="${s.id}" data-type="shop" style="position:static; margin:0 auto;">♥</button>
-      </div>
-    `).join("");
-    
-    emptyShops.style.display = favShops.length ? "none" : "block";
+              <div class="grid-select-overlay">
+                <input type="checkbox" class="grid-checkbox" value="${p.id}">
+              </div>
+            </div>
+          `;
+        }).join("");
+      } else {
+        emptyMsg.textContent = "Vous n'avez publié aucun produit.";
+      }
 
-    // Bind boutons like boutiques dans le profil
-    shopsContainer.querySelectorAll(".like-btn").forEach(btn => {
-      btn.addEventListener("click", async (e) => {
-        const id = btn.getAttribute("data-id");
-        await toggleLike(id, 'shop');
-        renderFavorites(); // Re-render pour enlever l'élément
-      });
-    });
+    } else if (tabName === "favorites") {
+      // --- FAVORIS (Produits) ---
+      actionLabel = "Retirer des favoris";
+      actionType = "unlike";
+      bulkBtn.textContent = "Retirer de la liste";
+
+      const likedIds = user.likedProducts || [];
+      const allProducts = getMarketplaceProducts();
+      const likedProducts = allProducts.filter(p => likedIds.includes(p.id));
+
+      if (likedProducts.length > 0) {
+        isEmpty = false;
+        itemsHTML = likedProducts.map(p => {
+          const img = optimizeCloudinaryUrl(p.image || PLACEHOLDER_IMAGE, 300);
+          const origin = p.isOccasion ? 'occasion' : 'regular';
+          return `
+            <div class="profile-grid-item" data-id="${p.id}">
+              <a href="product.html?id=${p.id}&origin=${origin}" class="grid-link">
+                <img src="${img}" alt="${p.name}" loading="lazy">
+              </a>
+              <button class="grid-options-btn" data-id="${p.id}"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+
+              <div class="grid-select-overlay">
+                <input type="checkbox" class="grid-checkbox" value="${p.id}">
+              </div>
+            </div>
+          `;
+        }).join("");
+      } else {
+        emptyMsg.textContent = "Aucun produit en favori.";
+      }
+
+    } else if (tabName === "shops") {
+      // --- BOUTIQUES SUIVIES ---
+      actionLabel = "Ne plus suivre";
+      actionType = "unfollow";
+      bulkBtn.textContent = "Ne plus suivre";
+
+      const favShopIds = user.favoriteShops || [];
+      const allShops = getShops();
+      const favShops = allShops.filter(s => favShopIds.includes(s.id));
+
+      if (favShops.length > 0) {
+        isEmpty = false;
+        itemsHTML = favShops.map(s => {
+          const img = optimizeCloudinaryUrl(s.logo || "https://placehold.co/300x300?text=Shop", 300);
+          return `
+            <div class="profile-grid-item" data-id="${s.id}">
+              <a href="shop-details.html?id=${s.id}" class="grid-link">
+                <img src="${img}" alt="${s.nom}" style="padding: 10px; background:white;">
+              </a>
+              <button class="grid-options-btn" data-id="${s.id}"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+
+              <div class="grid-select-overlay">
+                <input type="checkbox" class="grid-checkbox" value="${s.id}">
+              </div>
+            </div>
+          `;
+        }).join("");
+      } else {
+        emptyMsg.textContent = "Vous ne suivez aucune boutique.";
+      }
+    }
+
+    if (isEmpty) {
+      emptyMsg.style.display = "block";
+    } else {
+      grid.innerHTML = itemsHTML;
+    }
   }
 
-  renderFavorites();
+  // --- LOGIQUE DES ACTIONS ET SÉLECTIONS ---
 
-  // Ajouter la fonctionnalité "Mes produits"
-  setupMyProducts();
-  
-  // Ajouter les événements pour les photos de profil
-  setupProfileImageModal();
-}
+  function updateSelectionUI() {
+    if (isSelectionMode) {
+      grid.classList.add("selection-mode");
+      bulkBar.classList.add("active");
+    } else {
+      grid.classList.remove("selection-mode");
+      bulkBar.classList.remove("active");
+      // Décocher tout
+      grid.querySelectorAll(".grid-checkbox").forEach(cb => cb.checked = false);
+      updateCount();
+    }
+  }
 
-async function setupMyProducts() {
-  const container = document.getElementById("myProducts");
-  const empty = document.getElementById("emptyMyProducts");
-  
-  if (!container) return;
-  
-  const user = currentUser();
-  if (!user) return;
-  
-  function renderMyProducts() {
-    const occasion = getOccasionProducts().filter(p => p.vendeur_id === user.id).map(mapOccasionToMarketplace);
-    const mapped = [...occasion];
+  function updateCount() {
+    const checkboxes = grid.querySelectorAll(".grid-checkbox");
+    const count = Array.from(checkboxes).filter(cb => cb.checked).length;
     
-    if (mapped.length === 0) {
-      container.innerHTML = "";
-      if (empty) empty.style.display = "block";
-      return;
+    selectedCountEl.textContent = `${count} sélectionné(s)`;
+    bulkBtn.disabled = count === 0;
+    bulkBtn.style.opacity = count === 0 ? "0.5" : "1";
+
+    if (selectAllBtn) {
+      const allChecked = checkboxes.length > 0 && count === checkboxes.length;
+      selectAllBtn.textContent = allChecked ? "Tout désélectionner" : "Tout sélectionner";
+    }
+  }
+
+  // Quitter le mode sélection
+  cancelBulkBtn?.addEventListener("click", () => {
+    isSelectionMode = !isSelectionMode;
+    updateSelectionUI();
+  });
+
+  // Tout sélectionner / Désélectionner
+  selectAllBtn?.addEventListener("click", () => {
+    const checkboxes = grid.querySelectorAll(".grid-checkbox");
+    if (checkboxes.length === 0) return;
+    
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+    updateCount();
+  });
+
+  // Gestionnaire d'événements global sur la grille (Delegation)
+  grid.addEventListener("click", async (e) => {
+    // 1. Click sur les 3 points
+    if (e.target.closest(".grid-options-btn")) {
+      e.stopPropagation();
+      e.preventDefault();
+      const btn = e.target.closest(".grid-options-btn");
+      if (!btn) return; // Should not happen with closest, but good practice
+      const id = btn.dataset.id;
+
+      // Déterminer le contenu du menu en fonction de l'onglet actuel
+      let menuContent = '';
+      let actionLabel = '';
+      let actionType = '';
+
+      if (currentTab === "products") {
+        actionLabel = "Supprimer";
+        actionType = "delete";
+      } else if (currentTab === "favorites") {
+        actionLabel = "Retirer des favoris";
+        actionType = "unlike";
+      } else if (currentTab === "shops") {
+        actionLabel = "Ne plus suivre";
+        actionType = "unfollow";
+      }
+
+      menuContent = `
+        <button class="action-item" data-action="select" data-id="${id}">Sélectionner</button>
+        <button class="action-item danger" data-action="${actionType}" data-id="${id}">${actionLabel}</button>
+      `;
+
+      // Si le même menu est cliqué à nouveau, le fermer
+      if (globalOptionsMenu.classList.contains("active") && globalOptionsMenu.dataset.targetId === id) {
+        globalOptionsMenu.classList.remove("active");
+        globalOptionsMenu.removeAttribute("data-target-id");
+        return;
+      }
+
+      // Remplir et positionner le menu global
+      globalOptionsMenu.innerHTML = menuContent;
+      globalOptionsMenu.classList.add("active"); // On l'affiche d'abord pour calculer sa largeur
+
+      const rect = btn.getBoundingClientRect();
+      const menuWidth = globalOptionsMenu.offsetWidth;
+      
+      // Positionner à gauche du bouton (côte à côte)
+      globalOptionsMenu.style.top = `${rect.top}px`;
+      globalOptionsMenu.style.left = `${rect.left - menuWidth - 8}px`; // 8px d'écart à gauche
+      
+      globalOptionsMenu.dataset.targetId = id; // Garder une trace de l'élément ciblé
     }
     
-    if (empty) empty.style.display = "none";
-    container.innerHTML = mapped.map(p => renderProductCard(p, { sellerActions: true })).join("");
+    // 2. Click sur une action du menu (maintenant sur le menu global)
+    else if (e.target.closest("#globalOptionsMenu .action-item")) {
+      e.stopPropagation();
+      const btn = e.target.closest(".action-item");
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      
+      await executeAction(action, [id]);
+      document.querySelectorAll(".grid-options-menu").forEach(m => m.classList.remove("active"));
+    }
     
-    // Ajouter les événements pour marquer comme vendu
-    container.querySelectorAll("button[data-action='toggle-sold']").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-id");
-        
-        // Vérifier d'abord les produits réguliers
-        const allRegular = getProducts();
-        const targetRegular = allRegular.find(p => p.id === id && p.vendeur_id === user.id);
-        
-        if (targetRegular) {
-          targetRegular.status = targetRegular.status === "sold" ? "available" : "sold";
-        } else {
-          // Sinon vérifier les produits d'occasion
-          const allOccasion = getOccasionProducts();
-          const targetOccasion = allOccasion.find(p => p.id === id && p.vendeur_id === user.id);
-          if (targetOccasion) {
-            // Mettre à jour le statut (utiliser 'status' pour la cohérence, même si 'statut' existe parfois)
-            targetOccasion.status = targetOccasion.status === "sold" ? "available" : "sold";
-          }
+    // 3. Click sur l'overlay de sélection (coche la case)
+    else if (e.target.closest(".grid-select-overlay")) {
+      if (!isSelectionMode) return;
+      // Si on clique sur l'overlay mais pas directement sur la checkbox, on toggle la checkbox
+      if (!e.target.classList.contains("grid-checkbox")) {
+        const checkbox = e.target.closest(".grid-select-overlay").querySelector(".grid-checkbox");
+        checkbox.checked = !checkbox.checked;
+        updateCount();
+      }
+    }
+
+    // 4. Click direct sur checkbox
+    else if (e.target.classList.contains("grid-checkbox")) {
+      updateCount();
+    }
+  });
+
+  // Fermer les menus si on clique ailleurs
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".grid-options-btn") && !e.target.closest("#globalOptionsMenu")) {
+      globalOptionsMenu.classList.remove("active");
+      globalOptionsMenu.removeAttribute("data-target-id");
+    }
+  });
+
+  // Fermer le menu au défilement pour éviter qu'il reste flottant de manière incohérente
+  window.addEventListener("scroll", () => {
+    if (globalOptionsMenu.classList.contains("active")) {
+      globalOptionsMenu.classList.remove("active");
+      globalOptionsMenu.removeAttribute("data-target-id");
+    }
+  }, { passive: true });
+
+  // Click bouton Bulk Action
+  bulkBtn.addEventListener("click", async () => {
+    const checked = Array.from(grid.querySelectorAll(".grid-checkbox:checked")).map(cb => cb.value);
+    if (checked.length === 0) return;
+
+    if (!confirm(`Voulez-vous vraiment appliquer cette action sur ${checked.length} élément(s) ?`)) return;
+
+    let action = "";
+    if (currentTab === "products") action = "delete";
+    else if (currentTab === "favorites") action = "unlike";
+    else if (currentTab === "shops") action = "unfollow";
+
+    await executeAction(action, checked);
+    isSelectionMode = false;
+    updateSelectionUI();
+  });
+
+  // Fonction centrale d'exécution
+  async function executeAction(action, ids) {
+    const user = currentUser();
+    
+    try {
+      if (action === "select") {
+        isSelectionMode = true;
+        updateSelectionUI();
+        // Cocher automatiquement l'item qui a déclenché l'action
+        const cb = grid.querySelector(`.grid-checkbox[value="${ids[0]}"]`);
+        if (cb) cb.checked = true;
+        updateCount();
+        return;
+      }
+      if (action === "delete") {
+        // Suppression produits (Mes produits)
+        for (const id of ids) {
+          await deleteProductFirestore(id);
         }
-        renderMyProducts();
-      });
-    });
-
-    // Ajouter les événements pour supprimer
-    container.querySelectorAll("button[data-action='delete-product']").forEach(btn => {
-      btn.addEventListener("click", () => {
-        if (!confirm("Voulez-vous vraiment supprimer ce produit ?")) return;
-        if (!confirm("Voulez-vous vraiment supprimer ce produit (irreversible) ?")) return;
-        const id = btn.getAttribute("data-id");
-        const origin = btn.getAttribute("data-origin");
-
-        renderMyProducts();
-        deleteProductFirestore(id).then(async () => {
-            await syncData();
-            renderMyProducts();
-        });
-      });
-    });
+        alert("Suppression effectuée.");
+        await syncData(); // Recharger données
+        
+      } else if (action === "unlike") {
+        // Retirer favoris
+        let liked = user.likedProducts || [];
+        liked = liked.filter(id => !ids.includes(id));
+        await updateUserInFirestore(user.id, { likedProducts: liked });
+        
+        // Mise à jour locale session
+        user.likedProducts = liked;
+        localStorage.setItem("mg_logged_user", JSON.stringify(user));
+        
+      } else if (action === "unfollow") {
+        // Ne plus suivre boutique
+        for (const id of ids) {
+          await toggleShopFollow(user.id, id);
+        }
+        await syncData(); // Important pour shops
+      }
+      
+      // Rafraichir la grille
+      loadTabContent(currentTab);
+      
+    } catch (e) {
+      console.error(e);
+      alert("Une erreur est survenue.");
+    }
   }
+
+  // Gestion du clic sur les onglets
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      tabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      loadTabContent(tab.dataset.tab);
+    });
+  });
   
-  renderMyProducts();
+  // Charger l'onglet par défaut (Produits)
+  loadTabContent("products");
+
+  // Ajouter les événements pour les photos de profil
+  setupProfileImageModal();
 }
 
 // Fonctions globales pour la gestion des contacts
@@ -3065,6 +3313,7 @@ async function setupSellerShop() {
         try {
           // Appel de la fonction qui supprime de Firestore
           await deleteShopAndDissociateProducts(shopToDelete.id);
+          sendEmailLog("Boutique (Delete)", shopToDelete.id, user.email || user.id);
           await syncData(); // Mettre à jour le cache local
 
           alert("Boutique supprimée avec succès.");

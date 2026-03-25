@@ -1,4 +1,4 @@
-﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -54,11 +54,34 @@
       </div>
     </section>
 
-    <section class="panel">
-      <h2>Mes produits</h2>
-      <div id="myProducts" class="cards"></div>
-      <p id="emptyMyProducts" class="empty">Vous n'avez pas encore publié de produits.</p>
-    </section>
+    <div class="profile-dashboard panel" style="padding: 0; overflow: hidden;">
+      <div class="profile-tabs">
+        <button class="profile-tab active" data-tab="products">Mes produits</button>
+        <button class="profile-tab" data-tab="favorites">Favoris</button>
+        <button class="profile-tab" data-tab="shops">Suivies</button>
+      </div>
+
+      <div id="profileGrid" class="profile-grid"></div>
+      
+      <p id="profileEmptyMsg" class="empty" style="text-align:center; padding:30px; display:none;">Rien à afficher ici.</p>
+    </div>
+
+    <!-- Global Options Menu (hidden by default, positioned dynamically by JS) -->
+    <div id="globalOptionsMenu" class="grid-options-menu">
+      <!-- Le contenu sera injecté ici par JavaScript -->
+    </div>
+
+    <!-- Barre d'actions groupées (Cachée par défaut) -->
+    <div id="bulkActionsBar" class="bulk-actions-bar">
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <span id="selectedCount" style="font-weight:bold;">0 sélectionné(s)</span>
+        <div style="display:flex; gap:8px;">
+          <button id="selectAllBtn" class="select-mode-btn" style="width:auto; padding:2px 10px; font-size:0.75rem;">Tout sélectionner</button>
+          <button id="cancelBulkBtn" class="select-mode-btn" style="width:auto; padding:2px 10px; font-size:0.75rem;">Annuler</button>
+        </div>
+      </div>
+      <button id="bulkActionBtn" style="background: var(--danger); width: auto; padding: 10px 20px; border-radius: 8px;">Supprimer</button>
+    </div>
     
   </main>
 
@@ -66,6 +89,12 @@
   <div id="profileImageModal" class="profile-image-modal">
     <img id="modalProfileImage" src="" alt="Photo de profil en grand">
   </div>
+
+  <!-- EmailJS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+  <script>
+    (function(){ emailjs.init("pIgaKR9S7aPVoaiEf"); })();
+  </script>
 
   <script type="module" src="js/script.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>

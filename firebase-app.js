@@ -143,8 +143,8 @@ export const saveOccasionProduct = async (productData) => {
     // On utilise "products" comme collection principale
     const docRef = await addDoc(collection(db, "products"), {
       ...productData,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
     console.log("Annonce publiée avec ID: ", docRef.id);
     return docRef.id;
@@ -159,12 +159,23 @@ export const saveOccasionProduct = async (productData) => {
  */
 export const getAllProducts = async () => {
   try {
-    const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
+    // On retire le orderBy ici pour éviter les erreurs si les formats de dates sont mélangés
+    const q = query(collection(db, "products"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Tri robuste en JavaScript (gère String ISO et Timestamp Firestore)
+    return products.sort((a, b) => {
+      const getDate = (d) => {
+        if (!d) return 0;
+        if (typeof d.toDate === 'function') return d.toDate().getTime(); // Timestamp Firestore
+        return new Date(d).getTime(); // String ISO
+      };
+      return getDate(b.createdAt) - getDate(a.createdAt);
+    });
   } catch (error) {
     console.error("Erreur récupération produits:", error);
-    return [];
+    return null;
   }
 };
 
@@ -192,7 +203,7 @@ export const getAllShops = async () => {
   try {
     const snapshot = await getDocs(collection(db, "shops"));
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  } catch (error) { console.error(error); return []; }
+  } catch (error) { console.error(error); return null; }
 };
 
 export const saveShopToFirestore = async (data, id = null) => {
