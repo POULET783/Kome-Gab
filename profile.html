@@ -54,12 +54,13 @@
       </div>
     </section>
 
-    <div class="profile-dashboard panel" style="padding: 0; overflow: hidden;">
-      <div class="profile-tabs">
+    <div class="profile-dashboard panel" style="padding: 0; overflow: hidden; position: relative;">
+      <div class="profile-tabs" style="padding-right: 44px;">
         <button class="profile-tab active" data-tab="products">Mes produits</button>
         <button class="profile-tab" data-tab="favorites">Favoris</button>
         <button class="profile-tab" data-tab="shops">Suivies</button>
       </div>
+      <button id="profileSectionOptions" class="grid-options-btn" style="position: absolute; top: 8px; right: 8px; margin-top: 0; z-index: 10; background: none; box-shadow: none;"><i class="fa-solid fa-ellipsis-vertical"></i></button>
 
       <div id="profileGrid" class="profile-grid"></div>
       

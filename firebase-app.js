@@ -1,7 +1,7 @@
 // Importation des SDKs Firebase (v9 modular)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, setDoc, getDoc, deleteDoc, updateDoc, runTransaction, writeBatch, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, doc, setDoc, getDoc, deleteDoc, updateDoc, runTransaction, writeBatch, arrayUnion, increment, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- CONFIGURATION ---
 
@@ -42,6 +42,105 @@ export const registerUser = async (email, password) => {
   }
 };
 
+// New function to record a product view
+export const recordProductView = async (productId, sellerId) => {
+  if (!productId || !sellerId) {
+    console.warn("Cannot record product view: missing productId or sellerId.");
+    return;
+  }
+
+  const today = new Date();
+  const todayString = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+
+  // Crée un document unique pour chaque produit et chaque jour
+  const docRef = doc(db, "product_daily_views", `${productId}_${todayString}`);
+
+  try {
+    await setDoc(docRef, {
+      productId: productId,
+      sellerId: sellerId,
+      date: todayString,
+      type: "product",
+      views: increment(1) // Incrémente atomiquement le compteur de vues
+    }, { merge: true }); // Utilise merge: true pour créer le document s'il n'existe pas, ou le mettre à jour s'il existe
+  } catch (error) {
+    console.error("Error recording product view:", error);
+  }
+};
+
+// New function to record a shop view
+export const recordShopView = async (shopId, sellerId) => {
+  if (!shopId || !sellerId) return;
+
+  const today = new Date();
+  const todayString = today.toISOString().split('T')[0];
+
+  // On utilise la même collection pour que l'agrégation globale fonctionne
+  const docRef = doc(db, "product_daily_views", `${shopId}_${todayString}`);
+
+  try {
+    await setDoc(docRef, {
+      shopId: shopId,
+      sellerId: sellerId,
+      date: todayString,
+      type: "shop",
+      views: increment(1)
+    }, { merge: true });
+  } catch (error) {
+    console.error("Error recording shop view:", error);
+  }
+};
+
+// New function to get daily product views for a seller
+export const getSellerDailyProductViews = async (sellerId, days = 7) => {
+  if (!sellerId) {
+    console.warn("Cannot get seller daily product views: missing sellerId.");
+    return [];
+  }
+
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - (days - 1)); // Récupère les données pour les 'days' derniers jours
+
+  const startDateString = startDate.toISOString().split('T')[0];
+  const endDateString = endDate.toISOString().split('T')[0];
+
+  try {
+    const q = query(
+      collection(db, "product_daily_views"),
+      where("sellerId", "==", sellerId),
+      where("type", "==", "shop"),
+      where("date", ">=", startDateString),
+      where("date", "<=", endDateString),
+      orderBy("date", "asc")
+    );
+    const snapshot = await getDocs(q);
+
+    const dailyViews = {};
+    // Initialise les vues pour chaque jour de la période à 0
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      dailyViews[d.toISOString().split('T')[0]] = 0;
+    }
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      dailyViews[data.date] = (dailyViews[data.date] || 0) + data.views;
+    });
+
+    // Convertit l'objet en un tableau trié pour Chart.js
+    const result = Object.keys(dailyViews).sort().map(date => ({
+      date: date,
+      views: dailyViews[date]
+    }));
+
+    return result;
+  } catch (error) {
+    console.error("Error getting seller daily product views:", error);
+    return [];
+  }
+};
 export const loginUser = async (email, password) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -212,6 +311,43 @@ export const saveShopToFirestore = async (data, id = null) => {
     return id;
   }
   return (await addDoc(collection(db, "shops"), data)).id; // Création
+};
+
+// Propager le numéro WhatsApp vendeur vers les contenus liés
+export const syncSellerWhatsappNumber = async (sellerId, whatsappNumber) => {
+  if (!sellerId) throw new Error("sellerId requis.");
+  const normalized = String(whatsappNumber || "").replace(/\D/g, "");
+  if (!normalized) throw new Error("Numéro WhatsApp invalide.");
+
+  try {
+    const productsQ = query(collection(db, "products"), where("vendeur_id", "==", sellerId));
+    const productsSnap = await getDocs(productsQ);
+    for (const docSnap of productsSnap.docs) {
+      await updateDoc(docSnap.ref, {
+        phone: normalized,
+        numero_whatsapp: normalized
+      });
+    }
+
+    const shopsQ = query(collection(db, "shops"), where("vendeur_id", "==", sellerId));
+    const shopsSnap = await getDocs(shopsQ);
+    for (const docSnap of shopsSnap.docs) {
+      await updateDoc(docSnap.ref, {
+        contact_whatsapp: normalized
+      });
+    }
+
+    const videosQ = query(collection(db, "short_videos"), where("userId", "==", sellerId));
+    const videosSnap = await getDocs(videosQ);
+    for (const docSnap of videosSnap.docs) {
+      await updateDoc(docSnap.ref, {
+        userPhone: normalized
+      });
+    }
+  } catch (error) {
+    console.error("Erreur syncSellerWhatsappNumber:", error);
+    throw error;
+  }
 };
 
 export const deleteShopAndDissociateProducts = async (shopId) => {
@@ -409,4 +545,126 @@ export const toggleVideoLike = async (videoId, userId) => {
       transaction.update(videoRef, { likes: newLikes });
     });
   } catch (e) { console.error("Erreur toggle video like:", e); throw e; }
+};
+
+/**
+ * Ajouter un commentaire à une vidéo courte
+ */
+export const addVideoComment = async (videoId, commentData) => {
+  const videoRef = doc(db, "short_videos", videoId);
+  try {
+    await runTransaction(db, async (transaction) => {
+      const videoDoc = await transaction.get(videoRef);
+      if (!videoDoc.exists()) throw new Error("Vidéo introuvable.");
+
+      const data = videoDoc.data();
+      const comments = Array.isArray(data.comments) ? data.comments : [];
+      const createdAt = new Date().toISOString();
+      const nextComment = {
+        id: commentData.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        userId: commentData.userId,
+        userName: commentData.userName || "Utilisateur",
+        text: commentData.text || "",
+        parentId: commentData.parentId || null,
+        replyToUserName: commentData.replyToUserName || null,
+        likes: [],
+        createdAt
+      };
+
+      transaction.update(videoRef, { comments: [...comments, nextComment] });
+    });
+  } catch (e) {
+    console.error("Erreur add video comment:", e);
+    throw e;
+  }
+};
+
+/**
+ * Like/Unlike un commentaire vidéo (coeur)
+ */
+export const toggleVideoCommentLike = async (videoId, commentId, userId) => {
+  const videoRef = doc(db, "short_videos", videoId);
+  try {
+    await runTransaction(db, async (transaction) => {
+      const videoDoc = await transaction.get(videoRef);
+      if (!videoDoc.exists()) throw new Error("Vidéo introuvable.");
+
+      const data = videoDoc.data();
+      const comments = Array.isArray(data.comments) ? data.comments : [];
+      const idx = comments.findIndex((c) => c.id === commentId);
+      if (idx < 0) throw new Error("Commentaire introuvable.");
+
+      const target = comments[idx];
+      const likes = Array.isArray(target.likes) ? target.likes : [];
+      const nextLikes = likes.includes(userId)
+        ? likes.filter((id) => id !== userId)
+        : [...likes, userId];
+
+      const nextComments = [...comments];
+      nextComments[idx] = { ...target, likes: nextLikes };
+      transaction.update(videoRef, { comments: nextComments });
+    });
+  } catch (e) {
+    console.error("Erreur toggle video comment like:", e);
+    throw e;
+  }
+};
+
+/**
+ * Supprimer un commentaire vidéo (uniquement son auteur).
+ * Supprime aussi ses réponses enfants pour éviter les fils orphelins.
+ */
+export const deleteVideoComment = async (videoId, commentId, userId) => {
+  const videoRef = doc(db, "short_videos", videoId);
+  try {
+    await runTransaction(db, async (transaction) => {
+      const videoDoc = await transaction.get(videoRef);
+      if (!videoDoc.exists()) throw new Error("Vidéo introuvable.");
+
+      const data = videoDoc.data();
+      const comments = Array.isArray(data.comments) ? data.comments : [];
+      const target = comments.find((c) => c.id === commentId);
+      if (!target) throw new Error("Commentaire introuvable.");
+      if (target.userId !== userId) throw new Error("Action non autorisée.");
+
+      const idsToDelete = new Set([commentId]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        comments.forEach((c) => {
+          if (c.parentId && idsToDelete.has(c.parentId) && !idsToDelete.has(c.id)) {
+            idsToDelete.add(c.id);
+            changed = true;
+          }
+        });
+      }
+
+      const nextComments = comments.filter((c) => !idsToDelete.has(c.id));
+      transaction.update(videoRef, { comments: nextComments });
+    });
+  } catch (e) {
+    console.error("Erreur delete video comment:", e);
+    throw e;
+  }
+};
+
+/**
+ * Supprimer une vidéo courte (uniquement son propriétaire)
+ */
+export const deleteShortVideo = async (videoId, userId) => {
+  const videoRef = doc(db, "short_videos", videoId);
+  try {
+    const videoDoc = await getDoc(videoRef);
+    if (!videoDoc.exists()) throw new Error("Vidéo introuvable.");
+
+    const data = videoDoc.data();
+    if (data.userId !== userId) {
+      throw new Error("Action non autorisée.");
+    }
+
+    await deleteDoc(videoRef);
+  } catch (e) {
+    console.error("Erreur delete short video:", e);
+    throw e;
+  }
 };

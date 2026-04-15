@@ -509,6 +509,10 @@ button:active,
   gap: 10px;
 }
 
+.boutique-filters + #shopProducts {
+  margin-top: 12px;
+}
+
 .amazon-search-wrap {
   display: grid;
   grid-template-columns: 170px 1fr 48px;
@@ -554,10 +558,6 @@ button:active,
   font-size: 1.06rem;
   background: linear-gradient(180deg, #ffb347 0%, #ff9900 100%);
   box-shadow: none;
-}
-
-#maxPriceFilter {
-  max-width: 220px;
 }
 
 .amazon-search-panel {
@@ -715,6 +715,8 @@ textarea:focus {
   transition: all 0.2s ease;
   z-index: 10;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .like-btn.active {
@@ -1305,10 +1307,6 @@ textarea:focus {
     font-size: 0.92rem;
   }
 
-  #maxPriceFilter {
-    max-width: 100%;
-  }
-
   .gallery-main-image {
     max-width: 100%;
   }
@@ -1373,6 +1371,11 @@ textarea:focus {
   padding: 0;
 }
 
+.video-feed {
+  display: grid;
+  justify-items: center;
+}
+
 .video-card {
   position: relative;
   background: #000;
@@ -1382,6 +1385,7 @@ textarea:focus {
   box-shadow: 0 4px 15px rgba(0,0,0,0.2);
   aspect-ratio: 9/16; /* Format portrait */
   max-height: 85vh;
+  width: min(100%, 420px);
 }
 
 .video-player {
@@ -1411,10 +1415,16 @@ textarea:focus {
   font-size: 1.1rem;
 }
 
+.video-meta-date {
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.82);
+  margin-bottom: 6px;
+}
+
 /* Bouton Like spécifique Vidéo */
 .video-card .like-btn {
   top: auto;
-  bottom: 40px;
+  bottom: 208px;
   right: 10px;
   background: rgba(0, 0, 0, 0.4);
   color: white;
@@ -1429,20 +1439,68 @@ textarea:focus {
 
 .video-like-count {
   position: absolute;
-  bottom: 15px;
-  right: 10px;
-  width: 35px;
-  text-align: center;
+  bottom: 218px;
+  right: 52px;
+  width: auto;
+  min-width: 18px;
+  text-align: right;
   color: white;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
   z-index: 20;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 1px 6px;
+  line-height: 1.1;
+}
+
+.video-comment-toggle-btn {
+  position: absolute;
+  bottom: 160px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.video-comment-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+}
+
+.video-comment-count {
+  position: absolute;
+  bottom: 170px;
+  right: 52px;
+  width: auto;
+  min-width: 18px;
+  text-align: right;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 1px 6px;
+  line-height: 1.1;
 }
 
 .video-card .whatsapp-btn {
   position: absolute;
-  bottom: 90px; /* Au-dessus du bouton like */
+  bottom: 112px; /* Sous commentaire */
   right: 10px;
   background: rgba(0, 0, 0, 0.4);
   color: white;
@@ -1463,6 +1521,294 @@ textarea:focus {
   background: #25d366;
   border-color: #25d366;
   transform: scale(1.1);
+}
+
+.video-share-btn {
+  position: absolute;
+  bottom: 64px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.video-share-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  transform: scale(1.08);
+}
+
+.video-card .video-delete-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 25;
+}
+
+.video-card .video-delete-btn:hover {
+  background: rgba(217, 48, 37, 0.9);
+  border-color: rgba(217, 48, 37, 1);
+}
+
+.video-comments {
+  margin-top: 10px;
+  max-height: 170px;
+  overflow-y: auto;
+  display: grid;
+  gap: 4px;
+}
+
+.video-comment-item {
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: #f2f2f2;
+  display: grid;
+  gap: 2px;
+}
+
+.video-comment-item strong {
+  color: #fff;
+}
+
+.video-comment-date {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 1px;
+}
+
+.video-comment-item em {
+  color: rgba(255, 255, 255, 0.8);
+  font-style: normal;
+}
+
+.video-comment-item.is-reply {
+  margin-left: 14px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.video-reply-to-line {
+  margin-top: 2px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.video-comment-actions {
+  margin-top: 2px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.video-comment-like-btn,
+.video-comment-like-static {
+  border: none;
+  background: transparent;
+  color: #ffd6de;
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+.video-comment-like-btn {
+  cursor: pointer;
+}
+
+.video-comment-like-btn.active {
+  color: #ff6b93;
+}
+
+.video-comment-like-btn:hover {
+  text-decoration: underline;
+}
+
+.video-comment-reply-btn {
+  margin-top: 2px;
+  width: fit-content;
+  border: none;
+  background: transparent;
+  color: #9cd3ff;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.video-comment-reply-btn:hover {
+  text-decoration: underline;
+}
+
+.video-comment-delete-btn {
+  border: none;
+  background: transparent;
+  color: #ffd1d1;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.video-comment-delete-btn:hover {
+  text-decoration: underline;
+}
+
+.video-comment-child.reply-collapsed {
+  display: none;
+}
+
+.video-replies-toggle-btn {
+  margin-top: 4px;
+  margin-left: 14px;
+  border: none;
+  background: transparent;
+  color: #9cd3ff;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.video-replies-toggle-btn:hover {
+  text-decoration: underline;
+}
+
+.video-comment-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.video-comment-form {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.video-comment-reply-target {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  color: #fff;
+}
+
+.video-reply-cancel-btn {
+  border: none;
+  background: transparent;
+  color: #ffd1d1;
+  cursor: pointer;
+  font-size: 0.74rem;
+  padding: 0;
+}
+
+.video-comment-input {
+  flex: 1;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+.video-comment-input::placeholder {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.video-comment-send {
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: #25d366;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.video-comment-send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.video-comment-login-hint {
+  margin-top: 10px;
+  font-size: 0.8rem;
+}
+
+.video-comment-login-hint a {
+  color: #25d366;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.video-comments-panel {
+  position: absolute;
+  left: 10px;
+  right: 55px;
+  bottom: 10px;
+  background: rgba(0, 0, 0, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  z-index: 30;
+  display: none;
+}
+
+.video-comments-panel.active {
+  display: block;
+}
+
+.video-comments-header {
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.video-comments-close-btn {
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.video-comments-close-btn:hover {
+  opacity: 0.8;
 }
 
 /* ===================================
@@ -2601,9 +2947,10 @@ body.cart-open {
 /* Barre d'action fixe en bas */
 .bulk-actions-bar {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
+  bottom: 10px;
+  left: 10px;
+  width: calc(100% - 20px);
+  border-radius: 12px;
   background: #fff;
   padding: 15px 20px;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
@@ -2617,7 +2964,7 @@ body.cart-open {
 
 .bulk-actions-bar.active {
   transform: translateY(0);
-  padding-bottom: env(safe-area-inset-bottom, 15px); /* Support pour encoches mobiles */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); /* Support pour encoches mobiles */
 }
 
 .bulk-actions-bar #cancelBulkBtn {

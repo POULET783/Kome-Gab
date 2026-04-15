@@ -1,10 +1,11 @@
 // Script.js
 
 // Import des fonctions Firebase et Cloudinary
-import {
+import { 
   logoutUser, registerUser, loginUser, saveUserToFirestore, getUserFromFirestore, getUsersByIds,
   uploadMediaToCloudinary, uploadImageToCloudinary, saveOccasionProduct, getAllProducts, saveProductToFirestore, deleteProductFirestore, updateProductFirestore, getAllShops, saveShopToFirestore, deleteShopAndDissociateProducts, toggleShopFollow, saveReview, getReviews, updateUserInFirestore, saveStory, getActiveStories, deleteStory, viewStory,
-  saveShortVideo, getShortVideos, toggleVideoLike
+  saveShortVideo, getShortVideos, toggleVideoLike, addVideoComment, toggleVideoCommentLike, deleteVideoComment, deleteShortVideo,
+  recordProductView, getSellerDailyProductViews, recordShopView, syncSellerWhatsappNumber // <-- AJOUTÉES
 } from "../firebase-app.js";
 
 const STORAGE_KEYS = {
@@ -60,6 +61,9 @@ function sendEmailLog(type, id, publicId) {
 // 1. Initialisation immédiate avec les données locales (LocalStorage)
 let cachedProducts = read(STORAGE_KEYS.products, []);
 let cachedShops = read(STORAGE_KEYS.shops, []);
+let profilePageListenersController = null;
+let publicationPageListenersController = null;
+let dashboardPageListenersController = null;
 
 async function syncData() {
   // 2. Récupération réseau et mise à jour du cache local
@@ -101,23 +105,32 @@ function highlightActiveMenu() {
   const menu = document.getElementById("mobileMenu");
   if (!menu) return;
 
-  const currentFile = window.location.pathname.split("/").pop();
+  const path = String(window.location.pathname || "").toLowerCase();
+  const currentFile = (path.split("/").pop() || "index.html")
+    .split("?")[0]
+    .split("#")[0];
   const links = menu.querySelectorAll("a");
 
   links.forEach(link => {
-    const href = link.getAttribute("href");
+    const href = String(link.getAttribute("href") || "").toLowerCase();
     if (!href) return;
+    const hrefFile = href.split("?")[0].split("#")[0];
 
     let isActive = false;
 
-    // Correspondance exacte (ex: videos.html === videos.html)
-    if (currentFile === href) isActive = true;
+    // Correspondance exacte du nom de fichier
+    if (currentFile === hrefFile) isActive = true;
+
+    // Fallback Android / WebView (path complet qui se termine par le fichier)
+    if (!isActive && path.endsWith(`/${hrefFile}`)) isActive = true;
 
     // Cas particuliers pour l'accueil (home.html contient souvent un lien vers index.html)
-    if ((currentFile === "home.html" || currentFile === "") && href === "index.html") isActive = true;
+    if ((currentFile === "home.html" || currentFile === "") && hrefFile === "index.html") isActive = true;
 
     if (isActive) {
       link.classList.add("active");
+    } else {
+      link.classList.remove("active");
     }
   });
 }
@@ -558,11 +571,6 @@ function addToCart(product) {
     return;
   }
 
-  if (product.status === "sold") {
-    alert("Ce produit est marqué comme vendu.");
-    return;
-  }
-
   const normalized = mapRegularProduct(product);
   const items = getCartItems();
   const existing = items.find((item) => item.productId === normalized.id);
@@ -771,17 +779,17 @@ async function toggleLike(id, type) {
   // Cas spécifique pour les vidéos (stocké dans le document vidéo, pas user)
   if (type === 'video') {
     try {
-      // Update UI optimiste
-      const btn = document.querySelector(`.like-btn[data-id="${id}"][data-type="video"]`);
-      const countEl = document.querySelector(`.video-like-count[data-id="${id}"]`);
-      
-      if (btn) {
-        const isNowActive = btn.classList.toggle("active");
-        if (countEl) {
-          let count = parseInt(countEl.textContent || "0");
-          countEl.textContent = isNowActive ? count + 1 : Math.max(0, count - 1);
-        }
-      }
+      // UI optimiste déterministe (évite les inversions si double déclenchement tactile)
+      const btns = Array.from(document.querySelectorAll(`.like-btn[data-id="${id}"][data-type="video"]`));
+      const countEls = Array.from(document.querySelectorAll(`.video-like-count[data-id="${id}"]`));
+      const wasActive = btns.some((b) => b.classList.contains("active"));
+      const isNowActive = !wasActive;
+
+      btns.forEach((b) => b.classList.toggle("active", isNowActive));
+      countEls.forEach((countEl) => {
+        const count = parseInt(countEl.textContent || "0", 10);
+        countEl.textContent = String(isNowActive ? count + 1 : Math.max(0, count - 1));
+      });
 
       await toggleVideoLike(id, user.id);
       // On ne recharge pas toute la liste pour ne pas couper la vidéo en cours
@@ -818,9 +826,10 @@ async function toggleLike(id, type) {
       await updateUserInFirestore(user.id, { [field]: list });
     }
     
-    // Mettre à jour l'UI immédiatement (tous les boutons avec cet ID)
-    document.querySelectorAll(`.like-btn[data-id="${id}"]`).forEach(btn => {
-      btn.classList.toggle("active");
+    // Mettre à jour l'UI immédiatement (état explicite, stable sur mobile)
+    const isActive = list.includes(id);
+    document.querySelectorAll(`.like-btn[data-id="${id}"][data-type="${type}"]`).forEach(btn => {
+      btn.classList.toggle("active", isActive);
     });
     
   } catch (error) {
@@ -1299,7 +1308,6 @@ function renderProductCard(product, opts = {}) {
   const coverImage = optimizeCloudinaryUrl(images[0] || PLACEHOLDER_IMAGE, 400);
   
   const shopParam = normalized.shopId ? `?shop=${encodeURIComponent(normalized.shopId)}` : "";
-  const isSold = normalized.status === "sold";
   const galleryUrl = getProductDetailUrl(normalized);
 
   // État du like
@@ -1310,7 +1318,7 @@ function renderProductCard(product, opts = {}) {
   // Calcul du badge "Nouveau" (moins de 3 jours)
   let isNew = false;
   const dateVal = normalized.createdAt || normalized.date_publication || normalized.date_creation;
-  if (dateVal && !isSold) {
+  if (dateVal) {
     try {
       const pDate = (typeof dateVal.toDate === 'function') ? dateVal.toDate() : new Date(dateVal);
       if ((new Date() - pDate) / (1000 * 60 * 60 * 24) <= 3) isNew = true;
@@ -1354,7 +1362,6 @@ function renderProductCard(product, opts = {}) {
       </a>
       <div class="card-body">
         ${shopSnippet}
-        <span class="tag ${isSold ? "sold" : ""}">${isSold ? "Vendu" : "Disponible"}</span>
         ${isNew ? `<span class="tag" style="background: #e6f4ea; color: #1e8e3e; margin-left: 4px;">Nouveau</span>` : ""}
         <h4><a class="product-title-link" href="${galleryUrl}">${normalized.name}</a></h4>
         <p class="meta">${formatPrice(normalized.price)} • ${normalized.category || "Autre"}</p>
@@ -1362,10 +1369,6 @@ function renderProductCard(product, opts = {}) {
         <div class="row-actions">
           <a class="link-btn" href="${whatsappHref}" target="_blank" rel="noopener">Commander</a>
           ${cartAction}
-          ${opts.sellerActions ? `
-            <button class="warning" data-action="toggle-sold" data-id="${normalized.id}">${isSold ? "Remettre disponible" : "Marquer vendu"}</button>
-            <button style="background-color: var(--danger, #d93025); color: white;" data-action="delete-product" data-id="${normalized.id}" data-origin="${normalized.isOccasion ? 'occasion' : 'regular'}">Supprimer le produit</button>
-          ` : ""}
         </div>
       </div>
     </article>
@@ -1550,7 +1553,6 @@ async function setupHome() {
   function render() {
     const q = (document.getElementById("searchInput").value || "").trim().toLowerCase();
     const category = document.getElementById("categoryFilter").value;
-    const maxPrice = Number(document.getElementById("maxPriceFilter").value || 0);
 
     const products = getMarketplaceProducts().filter((p) => {
       const byText = !q || p.name.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
@@ -1559,8 +1561,7 @@ async function setupHome() {
       if (category === "Occasion") {
         byCategory = p.isOccasion;
       }
-      const byPrice = !maxPrice || Number(p.price) <= maxPrice;
-      return byText && byCategory && byPrice;
+      return byText && byCategory;
     });
 
     container.innerHTML = products.map((p) => renderProductCard(p)).join("");
@@ -1576,7 +1577,6 @@ async function setupHome() {
   searchInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") render(); });
 
   document.getElementById("categoryFilter")?.addEventListener("change", render);
-  document.getElementById("maxPriceFilter")?.addEventListener("input", render);
   render();
 }
 
@@ -1597,10 +1597,151 @@ async function setupDashboard() {
   const user = requireSeller();
   if (!user) return;
 
+  if (dashboardPageListenersController) {
+    dashboardPageListenersController.abort();
+  }
+  dashboardPageListenersController = new AbortController();
+  const listenerOptions = { signal: dashboardPageListenersController.signal };
+
   const addProductBtn = document.getElementById("addProductBtn");
   const empty = document.getElementById("emptySellerProducts");
 
-  setupFilesPreview("imageFiles", "imagePreviewList");
+  // --- GESTION DU MODE SÉLECTION ---
+  const bulkBar = document.getElementById("bulkActionsBar");
+  const bulkBtn = document.getElementById("bulkActionBtn");
+  const selectedCountEl = document.getElementById("selectedCount");
+  const selectAllBtn = document.getElementById("selectAllBtn");
+  const cancelBulkBtn = document.getElementById("cancelBulkBtn");
+  let isSelectionMode = false;
+
+  // --- GESTION DES ONGLETS DU DASHBOARD ---
+  const dashboardTabs = document.querySelectorAll(".profile-tab");
+  const dashboardPanes = document.querySelectorAll(".dashboard-tab-pane");
+
+  dashboardTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      const target = tab.dataset.tab;
+      
+      // Mise à jour visuelle des onglets
+      dashboardTabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+
+      // Affichage du bon contenu
+      dashboardPanes.forEach(p => p.classList.add("hidden"));
+      const activePane = document.getElementById(`tab-${target}`);
+      if (activePane) activePane.classList.remove("hidden");
+
+      if (target === 'stats') initEvolutionChart();
+    }, listenerOptions);
+  });
+
+  function updateSelectionUI() {
+    if (isSelectionMode) {
+      list.classList.add("selection-mode");
+      bulkBar?.classList.add("active");
+    } else {
+      list.classList.remove("selection-mode");
+      bulkBar?.classList.remove("active");
+      list.querySelectorAll(".grid-checkbox").forEach(cb => cb.checked = false);
+      updateCount();
+    }
+  }
+
+  function updateCount() {
+    const checkboxes = list.querySelectorAll(".grid-checkbox");
+    const count = Array.from(checkboxes).filter(cb => cb.checked).length;
+    if (selectedCountEl) selectedCountEl.textContent = `${count} sélectionné(s)`;
+    if (bulkBtn) {
+      bulkBtn.disabled = count === 0;
+      bulkBtn.style.opacity = count === 0 ? "0.5" : "1";
+    }
+    if (selectAllBtn) {
+      const allChecked = checkboxes.length > 0 && count === checkboxes.length;
+      selectAllBtn.textContent = allChecked ? "Tout désélectionner" : "Tout sélectionner";
+    }
+  }
+
+  let isChartLoading = false;
+  async function initEvolutionChart() {
+    if (isChartLoading) return;
+    
+    const ctx = document.getElementById('evolutionChart')?.getContext('2d');
+    const filter = document.getElementById('chartPeriodFilter');
+    const chartCanvas = document.getElementById('evolutionChart');
+
+    if (!ctx || !window.Chart || !chartCanvas) return;
+
+    isChartLoading = true;
+    const days = filter ? parseInt(filter.value) : 7;
+
+    const user = currentUser(); // Récupère l'utilisateur actuel (vendeur)
+    if (!user || user.type_compte !== "seller") {
+      // Affiche un message si l'utilisateur n'est pas un vendeur ou n'est pas connecté
+      ctx.canvas.parentNode.innerHTML = '<p class="empty" style="text-align:center; padding:20px;">Connectez-vous en tant que vendeur pour voir les statistiques.</p>';
+      return;
+    }
+
+    try {
+      // Récupère les données de vues quotidiennes pour le vendeur
+      const dailyViewsData = await getSellerDailyProductViews(user.id, days).finally(() => { isChartLoading = false; });
+
+      // Prépare les labels (jours de la semaine) et les données (nombre de vues)
+      const labels = dailyViewsData.map(item => {
+        const date = new Date(item.date);
+        return days <= 7 
+          ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }) 
+          : date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
+      });
+      const views = dailyViewsData.map(item => item.views);
+
+      // Nettoyage impératif : détruire toute instance associée à ce canvas avant d'en créer une nouvelle
+      const existingChart = window.Chart.getChart(chartCanvas);
+      if (existingChart) existingChart.destroy();
+
+      window.myDashboardChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels, // Utilise les labels dynamiques
+          datasets: [{
+            label: 'Vues de la boutique',
+            data: views, // Utilise les données de vues dynamiques
+            borderColor: '#ff6a00',
+            backgroundColor: 'rgba(255, 106, 0, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: { y: { beginAtZero: true, ticks: { callback: function(value) { if (Number.isInteger(value)) { return value; } } } } } // Force les ticks à être des entiers
+        }
+      });
+    } catch (error) {
+      isChartLoading = false;
+      console.error("Error fetching chart data:", error);
+      const errorMsg = document.getElementById('chartErrorMsg') || document.createElement('p');
+      errorMsg.id = 'chartErrorMsg';
+      errorMsg.style = "text-align:center; color:red; font-size:0.8rem;";
+      errorMsg.textContent = "Erreur de chargement des statistiques.";
+      if (!document.getElementById('chartErrorMsg')) chartCanvas.parentNode.appendChild(errorMsg);
+    }
+  }
+
+  // Ajouter l'écouteur sur le changement de période
+  document.getElementById("chartPeriodFilter")?.addEventListener("change", () => initEvolutionChart(), listenerOptions);
+
+  initEvolutionChart();
+
+  const imageFilesInput = document.getElementById("imageFiles");
+  if (imageFilesInput && !imageFilesInput.dataset.previewBoundDashboard) {
+    setupFilesPreview("imageFiles", "imagePreviewList");
+    imageFilesInput.dataset.previewBoundDashboard = "1";
+  }
 
   function getSellerShop() {
     return getShops().find((s) => s.vendeur_id === user.id) || null;
@@ -1610,43 +1751,131 @@ async function setupDashboard() {
     const products = getProducts().filter((p) => p.vendeur_id === user.id)
       .map(mapRegularProduct);
 
-    list.innerHTML = products.map((p) => renderProductCard(p, { sellerActions: true })).join("");
+    list.innerHTML = products.map((p) => {
+      const img = optimizeCloudinaryUrl(p.image || PLACEHOLDER_IMAGE, 300);
+      return `
+        <div class="profile-grid-item" data-id="${p.id}">
+          <a href="product.html?id=${p.id}&origin=regular" class="grid-link">
+            <img src="${img}" alt="${p.name}" loading="lazy">
+          </a>
+          <div class="grid-select-overlay">
+            <input type="checkbox" class="grid-checkbox" value="${p.id}">
+          </div>
+        </div>
+      `;
+    }).join("");
     empty.style.display = products.length ? "none" : "block";
-
-    list.querySelectorAll("button[data-action='toggle-sold']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-id");
-        const all = getProducts();
-        const target = all.find((p) => p.id === id);
-        if (!target) return;
-        target.status = target.status === "sold" ? "available" : "sold";
-        renderSellerProducts();
-        
-        const newStatus = target.status === "sold" ? "available" : "sold";
-        updateProductFirestore(id, { status: newStatus }).then(async () => {
-            sendEmailLog("Produit (Update Status)", id, user.email || user.id);
-            await syncData();
-            renderSellerProducts();
-        });
-      });
-    });
-
-    list.querySelectorAll("button[data-action='delete-product']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (!confirm("Voulez-vous vraiment supprimer ce produit ?")) return;
-        const id = btn.getAttribute("data-id");
-        // Pas besoin de sauvegarder localement, syncData s'en chargera après
-        renderSellerProducts();
-        deleteProductFirestore(id).then(async () => {
-            sendEmailLog("Produit (Delete)", id, user.email || user.id);
-            await syncData();
-            renderSellerProducts();
-        });
-      });
-    });
+    updateSelectionUI();
   }
 
+  const optionsMenu = document.getElementById("dashboardOptionsMenu");
+  const sectionOptionsBtn = document.getElementById("dashboardSectionOptions");
+
+  sectionOptionsBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    optionsMenu.innerHTML = `
+      <button class="action-item" data-action="select">Sélectionner</button>
+      <button class="action-item danger" data-action="delete">Supprimer la sélection</button>
+    `;
+    optionsMenu.classList.add("active");
+    const rect = sectionOptionsBtn.getBoundingClientRect();
+    optionsMenu.style.top = `${rect.bottom + 5}px`;
+    optionsMenu.style.left = `${rect.left - optionsMenu.offsetWidth + rect.width}px`;
+  }, listenerOptions);
+
+  list.addEventListener("click", (e) => {
+    if (e.target.closest(".grid-select-overlay")) {
+      if (!isSelectionMode) return;
+      const checkbox = e.target.closest(".grid-select-overlay").querySelector(".grid-checkbox");
+      if (e.target !== checkbox) {
+        checkbox.checked = !checkbox.checked;
+      }
+      updateCount();
+    } else if (e.target.classList.contains("grid-checkbox")) {
+      updateCount();
+    }
+  }, listenerOptions);
+
+  async function executeDashboardAction(action, ids) {
+    if (action === "select") {
+      isSelectionMode = true;
+      updateSelectionUI();
+      return;
+    }
+
+    let targets = ids.filter(id => id !== undefined && id !== null && id !== "undefined");
+    if (targets.length === 0) {
+      targets = Array.from(list.querySelectorAll(".grid-checkbox:checked")).map(cb => cb.value);
+    }
+
+    if (action === "delete") {
+      if (targets.length === 0) {
+        alert("Veuillez sélectionner au moins un produit.");
+        return;
+      }
+      if (!confirm(`Voulez-vous vraiment supprimer ${targets.length} produit(s) ?`)) return;
+      for (const id of targets) {
+        await deleteProductFirestore(id);
+      }
+      sendEmailLog("Produit (Bulk Delete Dashboard)", targets.join(','), user.email || user.id);
+      await syncData();
+      renderSellerProducts();
+    }
+  }
+
+  optionsMenu?.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".action-item");
+    if (!btn) return;
+    
+    const action = btn.dataset.action;
+    if (action === "select") {
+      isSelectionMode = true;
+      updateSelectionUI();
+    } else {
+      // Pour supprimer via le menu, on prend soit l'id du bouton (individuel), soit la sélection
+      await executeDashboardAction(action, [btn.dataset.id]);
+      isSelectionMode = false;
+      updateSelectionUI();
+    }
+    optionsMenu.classList.remove("active");
+  }, listenerOptions);
+
+  bulkBtn?.addEventListener("click", async () => {
+    const checked = Array.from(list.querySelectorAll(".grid-checkbox:checked")).map(cb => cb.value);
+    await executeDashboardAction("delete", checked);
+    isSelectionMode = false;
+    updateSelectionUI();
+  }, listenerOptions);
+
+  selectAllBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isSelectionMode) {
+      isSelectionMode = true;
+      updateSelectionUI();
+    }
+    const checkboxes = list.querySelectorAll(".grid-checkbox");
+    if (checkboxes.length === 0) return;
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+    updateCount();
+  }, listenerOptions);
+
+  cancelBulkBtn?.addEventListener("click", () => {
+    isSelectionMode = false;
+    updateSelectionUI();
+  }, listenerOptions);
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".grid-options-btn") && !e.target.closest("#dashboardOptionsMenu")) {
+      optionsMenu?.classList.remove("active");
+    }
+  }, listenerOptions);
+
+  window.addEventListener("scroll", () => optionsMenu?.classList.remove("active"), { passive: true, signal: dashboardPageListenersController.signal });
+
   addProductBtn.addEventListener("click", async () => {
+    if (addProductBtn.disabled) return;
     const name = document.getElementById("name").value.trim();
     const description = document.getElementById("description").value.trim();
     const price = Number(document.getElementById("price").value || 0);
@@ -1663,47 +1892,49 @@ async function setupDashboard() {
       return;
     }
 
-    let images = [];
-    try {
-      images = await getImagesDataFromInput("imageFiles");
-    } catch (error) {
-      alert(error.message);
+    const fileInput = document.getElementById("imageFiles");
+    const files = Array.from(fileInput?.files || []);
+
+    if (!files.length) {
+      alert("Veuillez sélectionner au moins une image.");
       return;
     }
 
-    if (!images.length) {
-      alert("Veuillez sélectionner au moins une image depuis vos dossiers.");
-      return;
-    }
+    const originalBtnText = addProductBtn.textContent;
+    addProductBtn.textContent = "Publication en cours...";
+    addProductBtn.disabled = true;
+
+    try {
+      // 1. Upload des images vers Cloudinary
+      const imageUrls = [];
+      for (const file of files) {
+        const url = await uploadImageToCloudinary(file);
+        imageUrls.push(url);
+      }
 
     const productData = {
-      // id: généré par Firestore
       nom: name,
       name,
       description,
       prix: price,
       price,
-      image: images[0],
-      images,
-      categorie: category,
-      category,
+      image: imageUrls[0],
+      images: imageUrls,
       vendeur_id: user.id,
-      sellerEmail: user.email,
-      boutique_id: shop.id,
       shopId: shop.id,
+      boutique_id: shop.id,
       phone: user.numero_whatsapp,
       date_publication: new Date().toISOString(),
       // date_publication gérée par createdAt
       status: "available"
     };
 
-    try {
         // NOUVEAU: Proposer de publier en story
         if (confirm("Voulez-vous également publier la première photo de ce produit dans votre story ?")) {
             try {
                 await saveStory({
                     userId: user.id,
-                    userName: user.nom || "Utilisateur",
+                    userName: user.nom || shop.nom,
                     userAvatar: user.photo_profil || "",
                     mediaUrl: productData.image, // L'URL de la première image
                     mediaType: 'image'
@@ -1726,8 +1957,11 @@ async function setupDashboard() {
         resetFilesPreview("imageFiles", "imagePreviewList");
     } catch(e) {
         alert("Erreur: " + e.message);
+    } finally {
+        addProductBtn.textContent = originalBtnText;
+        addProductBtn.disabled = false;
     }
-  });
+  }, listenerOptions);
 
     renderSellerProducts();
 }
@@ -1856,6 +2090,7 @@ async function setupBoutiquePage() {
       });
     });
 
+
     empty.style.display = byShop.length ? "none" : "block";
   }
 
@@ -1892,20 +2127,17 @@ async function setupOccasionPage() {
   const searchInput = document.getElementById("occasionSearchInput");
   const searchBtn = document.getElementById("occasionSearchBtn");
   const categoryFilter = document.getElementById("categoryFilter");
-  const maxPriceFilter = document.getElementById("maxPriceFilter");
 
   function render() {
     const q = (searchInput?.value || "").trim().toLowerCase();
     const category = categoryFilter?.value || "";
-    const maxPrice = Number(maxPriceFilter?.value || 0);
 
     const products = getOccasionProducts()
       .map(mapOccasionToMarketplace)
       .filter((p) => {
         const byText = !q || p.name.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
         const byCategory = !category || p.category === category;
-        const byPrice = !maxPrice || Number(p.price) <= maxPrice;
-        return byText && byCategory && byPrice;
+        return byText && byCategory;
       });
 
     container.innerHTML = products.map((p) => renderProductCard(p)).join("");
@@ -1916,7 +2148,6 @@ async function setupOccasionPage() {
   searchBtn?.addEventListener("click", render);
   searchInput?.addEventListener("input", render);
   categoryFilter?.addEventListener("change", render);
-  maxPriceFilter?.addEventListener("input", render);
   render();
 }
 
@@ -1931,7 +2162,17 @@ function setupPublication() {
     return;
   }
 
-  setupFilesPreview("occImageFiles", "occImagePreviewList");
+  if (publicationPageListenersController) {
+    publicationPageListenersController.abort();
+  }
+  publicationPageListenersController = new AbortController();
+  const listenerOptions = { signal: publicationPageListenersController.signal };
+
+  const occImageInput = document.getElementById("occImageFiles");
+  if (occImageInput && !occImageInput.dataset.previewBound) {
+    setupFilesPreview("occImageFiles", "occImagePreviewList");
+    occImageInput.dataset.previewBound = "1";
+  }
 
   // --- GESTION DES ONGLETS (Photo vs Vidéo) ---
   const tabs = document.querySelectorAll(".tab-btn");
@@ -1946,11 +2187,12 @@ function setupPublication() {
       // Activer l'onglet cliqué
       tab.classList.add("active");
       document.getElementById(tab.dataset.target).classList.add("active");
-    });
+    }, listenerOptions);
   });
 
   // --- PUBLICATION PRODUIT (PHOTO) ---
   publishBtn.addEventListener("click", async () => {
+    if (publishBtn.disabled) return;
     const nom = document.getElementById("occName").value.trim();
     const description = document.getElementById("occDescription").value.trim();
     const prix = Number(document.getElementById("occPrice").value || 0);
@@ -2037,7 +2279,7 @@ function setupPublication() {
       publishBtn.textContent = "Publier l'annonce";
       publishBtn.disabled = false;
     }
-  });
+  }, listenerOptions);
 
   // --- PUBLICATION VIDEO ---
   const videoBtn = document.getElementById("publishVideoBtn");
@@ -2051,11 +2293,12 @@ function setupPublication() {
         const url = URL.createObjectURL(file);
         videoPreview.innerHTML = `<video src="${url}" controls style="max-width:100%; max-height:300px; border-radius:8px;"></video>`;
       }
-    });
+    }, listenerOptions);
   }
 
   if (videoBtn) {
     videoBtn.addEventListener("click", async () => {
+      if (videoBtn.disabled) return;
       const caption = document.getElementById("videoCaption").value.trim();
       const file = videoInput.files[0];
 
@@ -2100,7 +2343,7 @@ function setupPublication() {
         videoBtn.textContent = "Publier la vidéo";
         videoBtn.disabled = false;
       }
-    });
+    }, listenerOptions);
   }
 }
 
@@ -2210,10 +2453,15 @@ async function setupProductDetailPage() {
     return;
   }
 
+  // --- NOUVEAU: Enregistrer la vue du produit ---
+  if (product.id && product.vendeur_id) { 
+    recordProductView(product.id, product.vendeur_id);
+  }
+  // --- FIN NOUVEAU ---
   const galleryImages = product.images.length ? product.images : [PLACEHOLDER_IMAGE];
 
   title.textContent = product.name;
-  meta.textContent = `${formatPrice(product.price)} • ${product.category || "Autre"} • ${product.status === "sold" ? "Vendu" : "Disponible"}`;
+  meta.textContent = `${formatPrice(product.price)} • ${product.category || "Autre"}`;
 
   // --- PARTAGE SOCIAL ---
   const currentUrl = window.location.href;
@@ -2440,11 +2688,39 @@ function setupProfilePage() {
     return;
   }
 
+  if (avatar && !avatar.dataset.modalBound) {
+    avatar.style.cursor = "pointer";
+    avatar.title = "Voir la photo en grand";
+    avatar.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const src = avatar.src || "";
+      if (src) {
+        openProfileImageModal(src);
+      }
+    });
+    avatar.dataset.modalBound = "1";
+  }
+
   const logged = currentUser();
   if (!logged) {
     alert("Connectez-vous pour accéder au profil.");
     window.location.href = "login.html";
     return;
+  }
+
+  if (profilePageListenersController) {
+    profilePageListenersController.abort();
+  }
+  profilePageListenersController = new AbortController();
+  const listenerOptions = { signal: profilePageListenersController.signal };
+
+  let lastAlert = { message: "", at: 0 };
+  function showAlert(message) {
+    const now = Date.now();
+    if (lastAlert.message === message && now - lastAlert.at < 1000) return;
+    lastAlert = { message, at: now };
+    alert(message);
   }
 
   function render(user) {
@@ -2467,27 +2743,28 @@ function setupProfilePage() {
         avatar.src = imgs[0];
       }
     } catch (error) {
-      alert(error.message);
+      showAlert(error.message);
       photoInput.value = "";
     }
-  });
+  }, listenerOptions);
 
   editProfileBtn.addEventListener("click", () => {
     profileForm.classList.add("is-editing");
-  });
+  }, listenerOptions);
 
   cancelProfileBtn.addEventListener("click", () => {
     profileForm.classList.remove("is-editing");
     // Re-render to discard changes
     render(currentUser());
-  });
+  }, listenerOptions);
 
   saveBtn.addEventListener("click", async () => {
+    if (saveBtn.disabled) return;
     const nom = nameInput.value.trim();
     const numero_whatsapp = normalizePhone(phoneInput.value);
   
     if (!nom || !numero_whatsapp) {
-      alert("Nom et téléphone sont obligatoires.");
+      showAlert("Nom et téléphone sont obligatoires.");
       return;
     }
 
@@ -2505,7 +2782,7 @@ function setupProfilePage() {
         try {
           photoProfil = await uploadImageToCloudinary(fileInput.files[0]);
         } catch (error) {
-          alert("Erreur lors de l'envoi de l'image : " + error.message);
+          showAlert("Erreur lors de l'envoi de l'image : " + error.message);
           saveBtn.textContent = originalBtnText;
           saveBtn.disabled = false;
           return;
@@ -2522,11 +2799,18 @@ function setupProfilePage() {
       // 3. Sauvegarde dans Firestore
       await updateUserInFirestore(logged.id, updateData);
 
+      // 3bis. Propager le nouveau numéro WhatsApp sur les contenus liés (commandes, boutique, vidéos)
+      const previousWhatsapp = normalizePhone(logged.numero_whatsapp || "");
+      if (previousWhatsapp !== numero_whatsapp) {
+        await syncSellerWhatsappNumber(logged.id, numero_whatsapp);
+        await syncData();
+      }
+
       // 4. Mise à jour de la session locale (pour affichage immédiat sans rechargement)
       const updatedUser = { ...logged, ...updateData };
       write(STORAGE_KEYS.loggedUser, updatedUser);
       
-      alert("Profil mis à jour avec succès !");
+      showAlert("Profil mis à jour avec succès !");
       render(updatedUser);
       updateAuthLink(); // Mettre à jour le header immédiatement
       profileForm.classList.remove("is-editing"); // Back to view mode
@@ -2534,37 +2818,45 @@ function setupProfilePage() {
 
     } catch (error) {
       console.error(error);
-      alert("Erreur lors de la mise à jour : " + error.message);
+      showAlert("Erreur lors de la mise à jour : " + error.message);
     } finally {
       saveBtn.textContent = originalBtnText;
       saveBtn.disabled = false;
     }
-  });
+  }, listenerOptions);
 
   // Gestion de la suppression de compte
   if (deleteAccountBtn) {
     deleteAccountBtn.addEventListener("click", () => {
+      if (deleteAccountBtn.disabled) return;
       if (confirm("⚠️ ATTENTION : Cette action est irréversible.\n\nVoulez-vous vraiment supprimer votre compte ?\nCela effacera définitivement votre profil, votre boutique et tous vos produits.")) {
+        deleteAccountBtn.disabled = true;
         const userId = logged.id;
 
         // 4. Déconnexion et redirection
         sendEmailLog("Compte (Delete)", userId, logged.email || logged.nom);
         write(STORAGE_KEYS.loggedUser, null);
-        alert("Votre compte a été supprimé avec succès.");
+        showAlert("Votre compte a été supprimé avec succès.");
         window.location.href = "index.html";
       }
-    });
+    }, listenerOptions);
   }
 
   // Gestion de la déconnexion depuis le profil
   if (deconnexionBtn) {
     deconnexionBtn.addEventListener("click", async () => {
+      if (deconnexionBtn.disabled) return;
       if (confirm("Voulez-vous vraiment vous déconnecter ?")) {
-        await logoutUser();
-        write(STORAGE_KEYS.loggedUser, null);
-        window.location.href = "index-no-connexion.html";
+        deconnexionBtn.disabled = true;
+        try {
+          await logoutUser();
+          write(STORAGE_KEYS.loggedUser, null);
+          window.location.href = "index-no-connexion.html";
+        } finally {
+          deconnexionBtn.disabled = false;
+        }
       }
-    });
+    }, listenerOptions);
   }
 
   render(logged);
@@ -2580,8 +2872,10 @@ function setupProfilePage() {
   const selectedCountEl = document.getElementById("selectedCount");
   const globalOptionsMenu = document.getElementById("globalOptionsMenu");
   
-  let currentTab = "products";
+  const initialActiveTab = document.querySelector(".profile-tab.active")?.dataset.tab || "products";
+  let currentTab = initialActiveTab;
   let isSelectionMode = false;
+  let isActionInProgress = false;
   
   // Fonction pour charger le contenu de la grille
   function loadTabContent(tabName) {
@@ -2600,25 +2894,36 @@ function setupProfilePage() {
     let actionType = "";
 
     if (tabName === "products") {
-      // --- MES PRODUITS (Occasion) ---
+      // --- MES PRODUITS (Boutique + Occasion) ---
       actionLabel = "Supprimer";
       actionType = "delete";
       bulkBtn.textContent = "Supprimer la sélection";
-      
-      const occasion = getOccasionProducts().filter(p => p.vendeur_id === user.id).map(mapOccasionToMarketplace);
-      
-      if (occasion.length > 0) {
+
+      const myShopIds = getShops()
+        .filter((s) => s.vendeur_id === user.id)
+        .map((s) => s.id);
+
+      const regular = getProducts()
+        .filter((p) => p.vendeur_id === user.id || myShopIds.includes(p.shopId) || myShopIds.includes(p.boutique_id))
+        .map(mapRegularProduct)
+        .map((p) => ({ ...p, _origin: "regular" }));
+
+      const occasion = getOccasionProducts()
+        .filter((p) => p.vendeur_id === user.id || myShopIds.includes(p.shopId) || myShopIds.includes(p.boutique_id))
+        .map(mapOccasionToMarketplace)
+        .map((p) => ({ ...p, _origin: "occasion" }));
+
+      const myProducts = [...regular, ...occasion];
+
+      if (myProducts.length > 0) {
         isEmpty = false;
-        itemsHTML = occasion.map(p => {
+        itemsHTML = myProducts.map(p => {
           const img = optimizeCloudinaryUrl(p.image || PLACEHOLDER_IMAGE, 300); // 300px suffisant pour grille
-          const badge = p.status === 'sold' ? '<span class="grid-badge">Vendu</span>' : '';
           return `
             <div class="profile-grid-item" data-id="${p.id}">
-              <a href="product.html?id=${p.id}&origin=occasion" class="grid-link">
-                ${badge}
+              <a href="product.html?id=${p.id}&origin=${p._origin}" class="grid-link">
                 <img src="${img}" alt="${p.name}" loading="lazy">
               </a>
-              <button class="grid-options-btn" data-id="${p.id}"><i class="fa-solid fa-ellipsis-vertical"></i></button>
 
               <div class="grid-select-overlay">
                 <input type="checkbox" class="grid-checkbox" value="${p.id}">
@@ -2650,7 +2955,6 @@ function setupProfilePage() {
               <a href="product.html?id=${p.id}&origin=${origin}" class="grid-link">
                 <img src="${img}" alt="${p.name}" loading="lazy">
               </a>
-              <button class="grid-options-btn" data-id="${p.id}"><i class="fa-solid fa-ellipsis-vertical"></i></button>
 
               <div class="grid-select-overlay">
                 <input type="checkbox" class="grid-checkbox" value="${p.id}">
@@ -2681,7 +2985,6 @@ function setupProfilePage() {
               <a href="shop-details.html?id=${s.id}" class="grid-link">
                 <img src="${img}" alt="${s.nom}" style="padding: 10px; background:white;">
               </a>
-              <button class="grid-options-btn" data-id="${s.id}"><i class="fa-solid fa-ellipsis-vertical"></i></button>
 
               <div class="grid-select-overlay">
                 <input type="checkbox" class="grid-checkbox" value="${s.id}">
@@ -2732,107 +3035,82 @@ function setupProfilePage() {
 
   // Quitter le mode sélection
   cancelBulkBtn?.addEventListener("click", () => {
-    isSelectionMode = !isSelectionMode;
+    isSelectionMode = false;
     updateSelectionUI();
-  });
+  }, listenerOptions);
 
   // Tout sélectionner / Désélectionner
-  selectAllBtn?.addEventListener("click", () => {
+  selectAllBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isSelectionMode) {
+      isSelectionMode = true;
+      updateSelectionUI();
+    }
     const checkboxes = grid.querySelectorAll(".grid-checkbox");
     if (checkboxes.length === 0) return;
     
     const allChecked = Array.from(checkboxes).every(cb => cb.checked);
     checkboxes.forEach(cb => cb.checked = !allChecked);
     updateCount();
-  });
+  }, listenerOptions);
 
-  // Gestionnaire d'événements global sur la grille (Delegation)
-  grid.addEventListener("click", async (e) => {
-    // 1. Click sur les 3 points
-    if (e.target.closest(".grid-options-btn")) {
-      e.stopPropagation();
-      e.preventDefault();
-      const btn = e.target.closest(".grid-options-btn");
-      if (!btn) return; // Should not happen with closest, but good practice
-      const id = btn.dataset.id;
+  const profileSectionOptionsBtn = document.getElementById("profileSectionOptions");
+  profileSectionOptionsBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    let actionLabel = "Supprimer", actionType = "delete";
+    if (currentTab === "favorites") { actionLabel = "Retirer"; actionType = "unlike"; }
+    else if (currentTab === "shops") { actionLabel = "Ne plus suivre"; actionType = "unfollow"; }
 
-      // Déterminer le contenu du menu en fonction de l'onglet actuel
-      let menuContent = '';
-      let actionLabel = '';
-      let actionType = '';
+    globalOptionsMenu.innerHTML = `
+      <button class="action-item" data-action="select">Sélectionner</button>
+      <button class="action-item danger" data-action="${actionType}">${actionLabel} la sélection</button>
+    `;
+    globalOptionsMenu.classList.add("active");
+    const rect = profileSectionOptionsBtn.getBoundingClientRect();
+    globalOptionsMenu.style.top = `${rect.bottom + 5}px`;
+    globalOptionsMenu.style.left = `${rect.left - globalOptionsMenu.offsetWidth + rect.width}px`;
+  }, listenerOptions);
 
-      if (currentTab === "products") {
-        actionLabel = "Supprimer";
-        actionType = "delete";
-      } else if (currentTab === "favorites") {
-        actionLabel = "Retirer des favoris";
-        actionType = "unlike";
-      } else if (currentTab === "shops") {
-        actionLabel = "Ne plus suivre";
-        actionType = "unfollow";
-      }
-
-      menuContent = `
-        <button class="action-item" data-action="select" data-id="${id}">Sélectionner</button>
-        <button class="action-item danger" data-action="${actionType}" data-id="${id}">${actionLabel}</button>
-      `;
-
-      // Si le même menu est cliqué à nouveau, le fermer
-      if (globalOptionsMenu.classList.contains("active") && globalOptionsMenu.dataset.targetId === id) {
-        globalOptionsMenu.classList.remove("active");
-        globalOptionsMenu.removeAttribute("data-target-id");
-        return;
-      }
-
-      // Remplir et positionner le menu global
-      globalOptionsMenu.innerHTML = menuContent;
-      globalOptionsMenu.classList.add("active"); // On l'affiche d'abord pour calculer sa largeur
-
-      const rect = btn.getBoundingClientRect();
-      const menuWidth = globalOptionsMenu.offsetWidth;
-      
-      // Positionner à gauche du bouton (côte à côte)
-      globalOptionsMenu.style.top = `${rect.top}px`;
-      globalOptionsMenu.style.left = `${rect.left - menuWidth - 8}px`; // 8px d'écart à gauche
-      
-      globalOptionsMenu.dataset.targetId = id; // Garder une trace de l'élément ciblé
-    }
-    
-    // 2. Click sur une action du menu (maintenant sur le menu global)
-    else if (e.target.closest("#globalOptionsMenu .action-item")) {
-      e.stopPropagation();
-      const btn = e.target.closest(".action-item");
-      const id = btn.dataset.id;
-      const action = btn.dataset.action;
-      
-      await executeAction(action, [id]);
-      document.querySelectorAll(".grid-options-menu").forEach(m => m.classList.remove("active"));
-    }
-    
-    // 3. Click sur l'overlay de sélection (coche la case)
-    else if (e.target.closest(".grid-select-overlay")) {
+  grid.addEventListener("click", (e) => {
+    if (e.target.closest(".grid-select-overlay")) {
       if (!isSelectionMode) return;
-      // Si on clique sur l'overlay mais pas directement sur la checkbox, on toggle la checkbox
-      if (!e.target.classList.contains("grid-checkbox")) {
-        const checkbox = e.target.closest(".grid-select-overlay").querySelector(".grid-checkbox");
+      const checkbox = e.target.closest(".grid-select-overlay").querySelector(".grid-checkbox");
+      if (e.target !== checkbox) {
         checkbox.checked = !checkbox.checked;
-        updateCount();
       }
-    }
-
-    // 4. Click direct sur checkbox
-    else if (e.target.classList.contains("grid-checkbox")) {
+      updateCount();
+    } else if (e.target.classList.contains("grid-checkbox")) {
       updateCount();
     }
-  });
+  }, listenerOptions);
 
-  // Fermer les menus si on clique ailleurs
+  // Listener pour le menu d'options global
+  globalOptionsMenu?.addEventListener("click", async (e) => {
+    if (isActionInProgress) return;
+    const btn = e.target.closest(".action-item");
+    if (!btn) return;
+    const action = btn.dataset.action;
+
+    if (action === "select") {
+      isSelectionMode = true;
+      updateSelectionUI();
+    } else {
+      // On passe [btn.dataset.id] qui sera undefined pour les actions de groupe, 
+      // la fonction executeAction gérera alors la récupération des éléments cochés.
+      await executeAction(action, [btn.dataset.id]);
+      isSelectionMode = false;
+      updateSelectionUI();
+    }
+    globalOptionsMenu.classList.remove("active");
+  }, listenerOptions);
+
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".grid-options-btn") && !e.target.closest("#globalOptionsMenu")) {
       globalOptionsMenu.classList.remove("active");
       globalOptionsMenu.removeAttribute("data-target-id");
     }
-  });
+  }, listenerOptions);
 
   // Fermer le menu au défilement pour éviter qu'il reste flottant de manière incohérente
   window.addEventListener("scroll", () => {
@@ -2840,15 +3118,12 @@ function setupProfilePage() {
       globalOptionsMenu.classList.remove("active");
       globalOptionsMenu.removeAttribute("data-target-id");
     }
-  }, { passive: true });
+  }, { passive: true, signal: profilePageListenersController.signal });
 
   // Click bouton Bulk Action
   bulkBtn.addEventListener("click", async () => {
+    if (isActionInProgress) return;
     const checked = Array.from(grid.querySelectorAll(".grid-checkbox:checked")).map(cb => cb.value);
-    if (checked.length === 0) return;
-
-    if (!confirm(`Voulez-vous vraiment appliquer cette action sur ${checked.length} élément(s) ?`)) return;
-
     let action = "";
     if (currentTab === "products") action = "delete";
     else if (currentTab === "favorites") action = "unlike";
@@ -2857,45 +3132,65 @@ function setupProfilePage() {
     await executeAction(action, checked);
     isSelectionMode = false;
     updateSelectionUI();
-  });
+  }, listenerOptions);
 
   // Fonction centrale d'exécution
   async function executeAction(action, ids) {
+    if (isActionInProgress) return;
+    isActionInProgress = true;
     const user = currentUser();
     
     try {
       if (action === "select") {
         isSelectionMode = true;
         updateSelectionUI();
-        // Cocher automatiquement l'item qui a déclenché l'action
-        const cb = grid.querySelector(`.grid-checkbox[value="${ids[0]}"]`);
-        if (cb) cb.checked = true;
-        updateCount();
         return;
       }
-      if (action === "delete") {
+
+    let targets = ids.filter(id => id !== undefined && id !== null && id !== "undefined");
+    if (targets.length === 0) {
+      targets = Array.from(grid.querySelectorAll(".grid-checkbox:checked")).map(cb => cb.value);
+    }
+
+    if (action === "delete") {
         // Suppression produits (Mes produits)
-        for (const id of ids) {
+      if (targets.length === 0) { showAlert("Veuillez sélectionner au moins un produit."); return; }
+      if (!confirm(`Voulez-vous vraiment supprimer ${targets.length} produit(s) ?`)) return;
+      for (const id of targets) {
           await deleteProductFirestore(id);
         }
-        alert("Suppression effectuée.");
+      sendEmailLog("Produit (Bulk Delete Profile)", targets.join(','), user.email || user.id);
         await syncData(); // Recharger données
         
       } else if (action === "unlike") {
         // Retirer favoris
+      if (targets.length === 0) { showAlert("Veuillez sélectionner au moins un élément."); return; }
         let liked = user.likedProducts || [];
-        liked = liked.filter(id => !ids.includes(id));
+      liked = liked.filter(id => !targets.includes(id));
         await updateUserInFirestore(user.id, { likedProducts: liked });
         
         // Mise à jour locale session
         user.likedProducts = liked;
-        localStorage.setItem("mg_logged_user", JSON.stringify(user));
+      write(STORAGE_KEYS.loggedUser, user);
         
       } else if (action === "unfollow") {
         // Ne plus suivre boutique
-        for (const id of ids) {
-          await toggleShopFollow(user.id, id);
+      if (targets.length === 0) { showAlert("Veuillez sélectionner au moins une boutique."); return; }
+      if (!confirm(`Voulez-vous vraiment ne plus suivre ces ${targets.length} boutique(s) ?`)) return;
+        const serverUserBefore = await getUserFromFirestore(user.id);
+        const serverFavoritesBefore = serverUserBefore?.favoriteShops || [];
+
+        // On force un retrait réel: toggle uniquement si la boutique est suivie côté serveur.
+        for (const id of targets) {
+          if (serverFavoritesBefore.includes(id)) {
+            await toggleShopFollow(user.id, id);
+          }
         }
+
+        // Synchroniser la session locale utilisateur avec l'état Firestore final.
+        const serverUserAfter = await getUserFromFirestore(user.id);
+        user.favoriteShops = serverUserAfter?.favoriteShops || [];
+        write(STORAGE_KEYS.loggedUser, user);
         await syncData(); // Important pour shops
       }
       
@@ -2904,7 +3199,9 @@ function setupProfilePage() {
       
     } catch (e) {
       console.error(e);
-      alert("Une erreur est survenue.");
+      showAlert("Une erreur est survenue.");
+    } finally {
+      isActionInProgress = false;
     }
   }
 
@@ -2914,14 +3211,14 @@ function setupProfilePage() {
       tabs.forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       loadTabContent(tab.dataset.tab);
-    });
+    }, listenerOptions);
   });
   
   // Charger l'onglet par défaut (Produits)
-  loadTabContent("products");
+  loadTabContent(initialActiveTab);
 
   // Ajouter les événements pour les photos de profil
-  setupProfileImageModal();
+  setupProfileImageModal(profilePageListenersController.signal);
 }
 
 // Fonctions globales pour la gestion des contacts
@@ -2961,10 +3258,11 @@ window.closeProfileImageModal = function() {
   }
 };
 
-async function setupProfileImageModal() {
+async function setupProfileImageModal(signal = null) {
   // Ajouter les événements click sur toutes les photos de profil
   const profileAvatars = document.querySelectorAll(".profile-avatar");
   const shopLogoDisplay = document.getElementById("shopLogoDisplay");
+  const listenerOptions = signal ? { signal } : undefined;
   
   profileAvatars.forEach(avatar => {
     avatar.addEventListener("click", (e) => {
@@ -2973,7 +3271,7 @@ async function setupProfileImageModal() {
       if (imageSrc && !imageSrc.includes("placehold.co")) {
         openProfileImageModal(imageSrc);
       }
-    });
+    }, listenerOptions);
   });
   
   if (shopLogoDisplay) {
@@ -2983,7 +3281,7 @@ async function setupProfileImageModal() {
       if (imageSrc && !imageSrc.includes("placehold.co")) {
         openProfileImageModal(imageSrc);
       }
-    });
+    }, listenerOptions);
   }
   
   // Fermer la modal avec la touche Escape
@@ -2991,7 +3289,7 @@ async function setupProfileImageModal() {
     if (e.key === "Escape") {
       closeProfileImageModal();
     }
-  });
+  }, listenerOptions);
 }
 
 async function setupSellerShop() {
@@ -3007,6 +3305,20 @@ async function setupSellerShop() {
   const deleteShopBtn = document.getElementById("deleteShopBtn");
   
   if (!shopForm) return;
+
+  if (shopLogoDisplay && !shopLogoDisplay.dataset.modalBound) {
+    shopLogoDisplay.style.cursor = "pointer";
+    shopLogoDisplay.title = "Voir le logo en grand";
+    shopLogoDisplay.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const currentSrc = shopLogoDisplay.src || "";
+      if (currentSrc) {
+        openProfileImageModal(currentSrc);
+      }
+    });
+    shopLogoDisplay.dataset.modalBound = "1";
+  }
 
   // Afficher la section si elle existe (qu'elle soit dans profile ou dashboard)
   const sellerSection = document.getElementById("sellerShopSection");
@@ -3336,43 +3648,170 @@ async function setupVideosPage() {
   const container = document.getElementById("videoFeed");
   const empty = document.getElementById("emptyVideos");
   const user = currentUser();
+  const openPanels = new Set(
+    Array.from(container?.querySelectorAll(".video-comments-panel.active") || [])
+      .map((el) => el.getAttribute("data-id"))
+      .filter(Boolean)
+  );
+
+  function escapeHtml(text) {
+    return String(text || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
   
   try {
     const videos = await getShortVideos();
     
     if (videos.length === 0) {
+      container.innerHTML = "";
       empty.classList.remove("hidden");
       return;
     }
+    empty.classList.add("hidden");
 
     container.innerHTML = videos.map(v => {
       const likes = v.likes || [];
       const isLiked = user && likes.includes(user.id);
       const likeCount = likes.length;
+      const comments = Array.isArray(v.comments) ? v.comments : [];
+      const commentCount = comments.length;
+      const canDelete = !!(user && v.userId === user.id);
+      const publishLabel = formatTimeAgo(v.createdAt || v.date_publication || "");
       
       // Préparation du lien WhatsApp
       const phone = v.userPhone ? normalizePhone(v.userPhone) : "";
       const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent("Bonjour, je suis intéressé par votre vidéo sur Kome-Gab : " + (v.caption || ""))}` : "#";
       const waDisplay = phone ? "flex" : "none";
+      const commentsByParent = new Map();
+      comments.forEach((c) => {
+        const key = c.parentId || "__root__";
+        if (!commentsByParent.has(key)) commentsByParent.set(key, []);
+        commentsByParent.get(key).push(c);
+      });
+
+      function collectDescendants(parentId, acc = []) {
+        const children = commentsByParent.get(parentId) || [];
+        children.forEach((child) => {
+          acc.push(child);
+          collectDescendants(child.id, acc);
+        });
+        return acc;
+      }
+
+      function renderCommentItem(c, isReply = false) {
+        const likeUsers = Array.isArray(c.likes) ? c.likes : [];
+        const likeCount = likeUsers.length;
+        const isLikedByMe = !!(user && likeUsers.includes(user.id));
+        const replyLine = c.replyToUserName ? `<div class="video-reply-to-line">Réponse à @${escapeHtml(c.replyToUserName)}</div>` : "";
+        const canDeleteComment = !!(user && user.id === c.userId);
+        const commentDate = formatTimeAgo(c.createdAt || "");
+        return `
+          <div class="video-comment-item ${isReply ? "is-reply" : ""}" data-comment-id="${c.id}">
+            <strong>${escapeHtml(c.userName || "Utilisateur")}</strong>
+            <div class="video-comment-date">${escapeHtml(commentDate)}</div>
+            ${replyLine}
+            <span>${escapeHtml(c.text || "")}</span>
+            <div class="video-comment-actions">
+              ${user ? `<button type="button" class="video-comment-reply-btn" data-video-id="${v.id}" data-comment-id="${c.id}" data-reply-to="${escapeHtml(c.userName || "Utilisateur")}">Répondre</button>` : ""}
+              ${user ? `<button type="button" class="video-comment-like-btn ${isLikedByMe ? "active" : ""}" data-video-id="${v.id}" data-comment-id="${c.id}">&#9829; ${likeCount}</button>` : `<span class="video-comment-like-static">&#9829; ${likeCount}</span>`}
+              ${canDeleteComment ? `<button type="button" class="video-comment-delete-btn" data-video-id="${v.id}" data-comment-id="${c.id}">Supprimer</button>` : ""}
+            </div>
+          </div>
+        `;
+      }
+
+      function renderCommentThreadFlat() {
+        const roots = commentsByParent.get("__root__") || [];
+        const rootsSorted = [...roots].sort((a, b) => {
+          const ta = new Date(a.createdAt || 0).getTime();
+          const tb = new Date(b.createdAt || 0).getTime();
+          return tb - ta; // plus récent d'abord
+        });
+        return rootsSorted.map((root) => {
+          const descendants = collectDescendants(root.id, []);
+          const hasManyReplies = descendants.length > 2;
+          const hiddenRepliesCount = Math.max(0, descendants.length - 2);
+          const repliesHtml = descendants.map((reply, idx) => `
+            <div class="video-comment-child ${idx >= 2 ? "reply-collapsed" : ""}">
+              ${renderCommentItem(reply, true)}
+            </div>
+          `).join("");
+
+          return `
+            <div class="video-comment-thread" data-comment-id="${root.id}">
+              ${renderCommentItem(root, false)}
+              ${descendants.length ? `<div class="video-comment-children">${repliesHtml}</div>` : ""}
+              ${hasManyReplies ? `<button type="button" class="video-replies-toggle-btn" data-expanded="0">+ Plus (${hiddenRepliesCount})</button>` : ""}
+            </div>
+          `;
+        }).join("");
+      }
+
+      const commentsHtml = comments.length
+        ? renderCommentThreadFlat()
+        : `<p class="video-comment-empty">Aucun commentaire.</p>`;
 
       return `
         <div class="video-card">
+          ${canDelete ? `<button class="video-delete-btn" data-id="${v.id}" title="Supprimer ma vidéo"><i class="fas fa-trash"></i></button>` : ""}
           <video class="video-player" src="${v.videoUrl}" controls loop playsinline></video>
           
+          <button class="like-btn ${isLiked ? 'active' : ''}" data-id="${v.id}" data-type="video">&#9829;</button>
+          <span class="video-like-count" data-id="${v.id}">${likeCount}</span>
+
+          <button class="video-comment-toggle-btn" data-id="${v.id}" title="Commentaires">
+            <i class="fa-regular fa-comment"></i>
+          </button>
+          <span class="video-comment-count" data-id="${v.id}">${commentCount}</span>
+
           <a href="${waLink}" class="whatsapp-btn" target="_blank" style="display:${waDisplay}" title="Contacter sur WhatsApp">
             <i class="fa-brands fa-whatsapp"></i>
           </a>
 
-          <button class="like-btn ${isLiked ? 'active' : ''}" data-id="${v.id}" data-type="video">♥</button>
-          <span class="video-like-count" data-id="${v.id}">${likeCount}</span>
+          <button class="video-share-btn" data-id="${v.id}" data-caption="${escapeHtml(v.caption || "")}" title="Partager">
+            <i class="fa-solid fa-share-nodes"></i>
+          </button>
+
 
           <div class="video-overlay">
-            <div class="video-user">@${v.userName}</div>
-            <p>${v.caption || ""}</p>
+            <div class="video-user">@${escapeHtml(v.userName || "Utilisateur")}</div>
+            <div class="video-meta-date">${escapeHtml(publishLabel || "")}</div>
+            <p>${escapeHtml(v.caption || "")}</p>
+          </div>
+
+          <div class="video-comments-panel" data-id="${v.id}">
+            <div class="video-comments-header">
+              <span>Commentaires (${commentCount})</span>
+              <button type="button" class="video-comments-close-btn" data-id="${v.id}" title="Fermer">X</button>
+            </div>
+            <div class="video-comments">${commentsHtml}</div>
+            ${user ? `
+              <div class="video-comment-form">
+                <div class="video-comment-reply-target" data-id="${v.id}" style="display:none;">
+                  <span class="reply-label"></span>
+                  <button type="button" class="video-reply-cancel-btn" data-id="${v.id}">Annuler</button>
+                </div>
+                <input type="text" class="video-comment-input" data-id="${v.id}" maxlength="250" placeholder="Ajouter un commentaire...">
+                <button type="button" class="video-comment-send" data-id="${v.id}">Envoyer</button>
+              </div>
+            ` : `
+              <div class="video-comment-login-hint">
+                <a href="login.html">Connectez-vous</a> pour commenter.
+              </div>
+            `}
           </div>
         </div>
       `;
     }).join("");
+
+    openPanels.forEach((id) => {
+      const panel = container.querySelector(`.video-comments-panel[data-id="${id}"]`);
+      if (panel) panel.classList.add("active");
+    });
 
     // Bind des boutons like vidéo
     container.querySelectorAll(".like-btn").forEach(btn => {
@@ -3381,6 +3820,270 @@ async function setupVideosPage() {
         e.stopPropagation();
         const id = btn.getAttribute("data-id");
         toggleLike(id, 'video');
+      });
+    });
+
+    // Double-clic style TikTok : active le like si pas déjà actif
+    container.querySelectorAll(".video-card").forEach((card) => {
+      card.addEventListener("dblclick", (e) => {
+        if (!user) return;
+        if (e.target.closest(".video-comments-panel, .video-comment-toggle-btn, .video-share-btn, .whatsapp-btn, .like-btn, .video-delete-btn, .video-comment-input, .video-comment-send, .video-comment-reply-btn, .video-comment-delete-btn, .video-comment-like-btn, .video-comments-close-btn, .video-replies-toggle-btn")) {
+          return;
+        }
+
+        const likeBtn = card.querySelector('.like-btn[data-type="video"]');
+        if (!likeBtn) return;
+        if (likeBtn.classList.contains("active")) return;
+
+        const id = likeBtn.getAttribute("data-id");
+        if (id) toggleLike(id, "video");
+      });
+    });
+
+    // Commentaires vidéos
+    container.querySelectorAll(".video-comment-send").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) {
+          alert("Connectez-vous pour commenter.");
+          return;
+        }
+
+        const videoId = btn.getAttribute("data-id");
+        const input = container.querySelector(`.video-comment-input[data-id="${videoId}"]`);
+        const replyTarget = container.querySelector(`.video-comment-reply-target[data-id="${videoId}"]`);
+        const text = (input?.value || "").trim();
+        if (!text) {
+          alert("Le commentaire est vide.");
+          return;
+        }
+
+        const parentId = input?.dataset.replyToCommentId || null;
+        const replyToUserName = input?.dataset.replyToUserName || null;
+
+        btn.disabled = true;
+        const oldText = btn.textContent;
+        btn.textContent = "...";
+        try {
+          await addVideoComment(videoId, {
+            userId: user.id,
+            userName: user.nom || user.email || "Utilisateur",
+            text,
+            parentId,
+            replyToUserName
+          });
+          if (input) {
+            input.value = "";
+            delete input.dataset.replyToCommentId;
+            delete input.dataset.replyToUserName;
+          }
+          if (replyTarget) {
+            replyTarget.style.display = "none";
+            const label = replyTarget.querySelector(".reply-label");
+            if (label) label.textContent = "";
+          }
+          await setupVideosPage();
+        } catch (error) {
+          console.error("Erreur ajout commentaire vidéo:", error);
+          alert("Impossible d'ajouter le commentaire.");
+        } finally {
+          btn.textContent = oldText;
+          btn.disabled = false;
+        }
+      });
+    });
+
+    container.querySelectorAll(".video-comment-input").forEach((input) => {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const videoId = input.getAttribute("data-id");
+          const sendBtn = container.querySelector(`.video-comment-send[data-id="${videoId}"]`);
+          sendBtn?.click();
+        }
+      });
+    });
+
+    container.querySelectorAll(".video-comment-reply-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const videoId = btn.getAttribute("data-video-id");
+        const commentId = btn.getAttribute("data-comment-id");
+        const replyTo = btn.getAttribute("data-reply-to") || "Utilisateur";
+        const input = container.querySelector(`.video-comment-input[data-id="${videoId}"]`);
+        const replyTarget = container.querySelector(`.video-comment-reply-target[data-id="${videoId}"]`);
+        if (!input || !replyTarget) return;
+
+        input.dataset.replyToCommentId = commentId;
+        input.dataset.replyToUserName = replyTo;
+        input.placeholder = `Répondre à @${replyTo}...`;
+        replyTarget.style.display = "flex";
+        const label = replyTarget.querySelector(".reply-label");
+        if (label) label.textContent = `Réponse à @${replyTo}`;
+        input.focus();
+      });
+    });
+
+    container.querySelectorAll(".video-reply-cancel-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const videoId = btn.getAttribute("data-id");
+        const input = container.querySelector(`.video-comment-input[data-id="${videoId}"]`);
+        const replyTarget = container.querySelector(`.video-comment-reply-target[data-id="${videoId}"]`);
+        if (input) {
+          delete input.dataset.replyToCommentId;
+          delete input.dataset.replyToUserName;
+          input.placeholder = "Ajouter un commentaire...";
+        }
+        if (replyTarget) {
+          replyTarget.style.display = "none";
+          const label = replyTarget.querySelector(".reply-label");
+          if (label) label.textContent = "";
+        }
+      });
+    });
+
+    container.querySelectorAll(".video-comment-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) return;
+        const videoId = btn.getAttribute("data-video-id");
+        const commentId = btn.getAttribute("data-comment-id");
+        if (!videoId || !commentId) return;
+        if (!confirm("Supprimer ce commentaire ?")) return;
+
+        btn.disabled = true;
+        try {
+          await deleteVideoComment(videoId, commentId, user.id);
+          await setupVideosPage();
+        } catch (error) {
+          console.error("Erreur suppression commentaire vidéo:", error);
+          alert(error?.message || "Impossible de supprimer ce commentaire.");
+          btn.disabled = false;
+        }
+      });
+    });
+
+    container.querySelectorAll(".video-comment-toggle-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const videoId = btn.getAttribute("data-id");
+        const panel = container.querySelector(`.video-comments-panel[data-id="${videoId}"]`);
+        if (!panel) return;
+        panel.classList.toggle("active");
+      });
+    });
+
+    container.querySelectorAll(".video-share-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const videoId = btn.getAttribute("data-id") || "";
+        const caption = btn.getAttribute("data-caption") || "";
+        const shareUrl = `${window.location.origin}${window.location.pathname}?video=${encodeURIComponent(videoId)}`;
+        const shareText = caption ? `Regarde cette vidéo: ${caption}` : "Regarde cette vidéo sur Kome-Gab";
+        try {
+          if (navigator.share) {
+            await navigator.share({
+              title: "Kome-Gab - Vidéo",
+              text: shareText,
+              url: shareUrl
+            });
+          } else if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(shareUrl);
+            alert("Lien vidéo copié.");
+          } else {
+            alert("Le partage n'est pas disponible sur cet appareil.");
+          }
+        } catch (error) {
+          // Ignorer l'annulation utilisateur; afficher seulement les vraies erreurs
+          if (error && error.name !== "AbortError") {
+            console.error("Erreur partage vidéo:", error);
+            alert("Impossible de partager la vidéo.");
+          }
+        }
+      });
+    });
+
+    container.querySelectorAll(".video-comments-close-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const videoId = btn.getAttribute("data-id");
+        const panel = container.querySelector(`.video-comments-panel[data-id="${videoId}"]`);
+        if (!panel) return;
+        panel.classList.remove("active");
+      });
+    });
+
+    container.querySelectorAll(".video-replies-toggle-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const thread = btn.closest(".video-comment-thread");
+        if (!thread) return;
+        const hiddenChildren = thread.querySelectorAll(":scope > .video-comment-children > .video-comment-child.reply-collapsed");
+        const isExpanded = btn.getAttribute("data-expanded") === "1";
+        if (isExpanded) {
+          hiddenChildren.forEach((el) => el.classList.add("reply-collapsed"));
+          const count = hiddenChildren.length;
+          btn.setAttribute("data-expanded", "0");
+          btn.textContent = `+ Plus (${count})`;
+        } else {
+          hiddenChildren.forEach((el) => el.classList.remove("reply-collapsed"));
+          btn.setAttribute("data-expanded", "1");
+          btn.textContent = "- Moins";
+        }
+      });
+    });
+
+    container.querySelectorAll(".video-comment-like-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) {
+          alert("Connectez-vous pour liker un commentaire.");
+          return;
+        }
+        const videoId = btn.getAttribute("data-video-id");
+        const commentId = btn.getAttribute("data-comment-id");
+        if (!videoId || !commentId) return;
+        btn.disabled = true;
+        try {
+          await toggleVideoCommentLike(videoId, commentId, user.id);
+          await setupVideosPage();
+        } catch (error) {
+          console.error("Erreur like commentaire:", error);
+          alert("Impossible de liker ce commentaire.");
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Suppression vidéo (propriétaire uniquement)
+    container.querySelectorAll(".video-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) return;
+        const videoId = btn.getAttribute("data-id");
+        if (!confirm("Voulez-vous vraiment supprimer cette vidéo ?")) return;
+
+        btn.disabled = true;
+        try {
+          await deleteShortVideo(videoId, user.id);
+          alert("Vidéo supprimée.");
+          await setupVideosPage();
+        } catch (error) {
+          console.error("Erreur suppression vidéo:", error);
+          alert(error?.message || "Impossible de supprimer la vidéo.");
+          btn.disabled = false;
+        }
       });
     });
 
@@ -3495,15 +4198,27 @@ async function setupShopDetailsPage() {
     return;
   }
 
+  // --- ENREGISTRER LA VUE DE LA BOUTIQUE ---
+  if (shop.id && shop.vendeur_id) {
+    recordShopView(shop.id, shop.vendeur_id);
+  }
+
   // 1. Remplissage des infos de la boutique
   document.title = `${shop.nom} - Kome-Gab`;
   
   // Logo
   const logoImg = document.getElementById("shopLogoImg");
-  if (logoImg && shop.logo) {
-    logoImg.src = optimizeCloudinaryUrl(shop.logo, 100);
+  if (logoImg) {
+    const logoSrc = shop.logo || "https://placehold.co/300x300?text=Shop";
+    logoImg.src = optimizeCloudinaryUrl(logoSrc, 100);
     logoImg.style.cursor = "pointer";
-    logoImg.onclick = () => window.openProfileImageModal(optimizeCloudinaryUrl(shop.logo, 800));
+    logoImg.title = "Voir la photo en grand";
+    logoImg.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const largeSrc = optimizeCloudinaryUrl(logoSrc, 900) || logoImg.src;
+      window.openProfileImageModal(largeSrc);
+    };
   }
 
   // Hero Section

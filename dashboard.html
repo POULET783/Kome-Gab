@@ -1,4 +1,4 @@
-﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -99,40 +99,85 @@
       </div>
     </section>
 
-    <section class="panel form" id="addProductSection">
-      <h2>Ajouter un produit</h2>
-      <label for="name">Nom</label>
-      <input id="name" placeholder="Ex: Samsung A54">
+    <div class="profile-dashboard panel" style="padding: 0; overflow: hidden;">
+      <div class="profile-tabs">
+        <button class="profile-tab active" data-tab="stats"><i class="fas fa-chart-line"></i> Évolution</button>
+        <button class="profile-tab" data-tab="add"><i class="fas fa-plus-circle"></i> Publier</button>
+        <button class="profile-tab" data-tab="list"><i class="fas fa-boxes"></i> Mes produits</button>
+      </div>
 
-      <label for="description">Description</label>
-      <textarea id="description" rows="3" placeholder="Détails du produit"></textarea>
+      <div id="dashboardTabContent" style="padding: 16px;">
+        <!-- Onglet 1: Statistiques -->
+        <div id="tab-stats" class="dashboard-tab-pane">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+            <h3 style="margin: 0;">Statistiques de performance</h3>
+            <select id="chartPeriodFilter" style="width: auto; padding: 5px 10px; font-size: 0.85rem; border-radius: 8px;">
+              <option value="7">7 derniers jours</option>
+              <option value="30">30 derniers jours (Mois)</option>
+              <option value="90">3 derniers mois</option>
+              <option value="365">Cette année</option>
+            </select>
+          </div>
+          <div style="height: 250px; position: relative; margin-bottom: 20px;">
+            <canvas id="evolutionChart"></canvas>
+          </div>
+        </div>
 
-      <label for="price">Prix (FCFA)</label>
-      <input id="price" type="number" min="0" placeholder="150000">
+        <!-- Onglet 2: Ajouter un produit -->
+        <div id="tab-add" class="dashboard-tab-pane hidden">
+          <div class="form">
+            <h3>Publier un nouveau produit</h3>
+            <label for="name">Nom</label>
+            <input id="name" placeholder="Ex: Samsung A54">
+            <label for="description">Description</label>
+            <textarea id="description" rows="3" placeholder="Détails du produit"></textarea>
+            <label for="price">Prix (FCFA)</label>
+            <input id="price" type="number" min="0" placeholder="150000">
+            <label for="imageFiles">Images produit</label>
+            <input id="imageFiles" type="file" accept="image/*" multiple>
+            <p class="small">Max 8 images, 2 Mo/image.</p>
+            <div id="imagePreviewList" class="preview-grid"></div>
+            <label for="category">Catégorie</label>
+            <select id="category">
+              <option value="Téléphone">Téléphone</option>
+              <option value="Ordinateur">Ordinateur</option>
+              <option value="Voiture">Voiture</option>
+              <option value="Vêtement">Vêtement</option>
+              <option value="Autre">Autre</option>
+            </select>
+            <button id="addProductBtn">Publier le produit</button>
+          </div>
+        </div>
 
-      <label for="imageFiles">Images produit</label>
-      <input id="imageFiles" type="file" accept="image/*" multiple>
-      <p class="small">Sélectionnez plusieurs images depuis vos dossiers (max 8 images, 2 Mo/image).</p>
-      <div id="imagePreviewList" class="preview-grid"></div>
-
-      <label for="category">Catégorie</label>
-      <select id="category">
-        <option value="Téléphone">Téléphone</option>
-        <option value="Ordinateur">Ordinateur</option>
-        <option value="Voiture">Voiture</option>
-        <option value="Vêtement">Vêtement</option>
-        <option value="Autre">Autre</option>
-      </select>
-
-      <button id="addProductBtn">Ajouter</button>
-    </section>
-
-    <section class="panel" id="manageProductsSection">
-      <h3>Mes produits</h3>
-      <div id="productList" class="cards"></div>
-      <p id="emptySellerProducts" class="empty">Vous n'avez pas encore ajouté de produit.</p>
-    </section>
+        <!-- Onglet 3: Mes produits -->
+        <div id="tab-list" class="dashboard-tab-pane hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;">Gestion de l'inventaire</h3>
+            <button id="dashboardSectionOptions" class="grid-options-btn" style="position: static;"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+          </div>
+          <div id="productList" class="profile-grid"></div>
+          <p id="emptySellerProducts" class="empty">Vous n'avez pas encore ajouté de produit.</p>
+        </div>
+      </div>
+    </div>
   </main>
+
+  <!-- Global Options Menu for Dashboard -->
+  <div id="dashboardOptionsMenu" class="grid-options-menu">
+    <!-- Le contenu sera injecté ici par JavaScript -->
+  </div>
+
+  <!-- Barre d'actions groupées -->
+  <div id="bulkActionsBar" class="bulk-actions-bar">
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <span id="selectedCount" style="font-weight:bold;">0 sélectionné(s)</span>
+      <div style="display:flex; gap:8px;">
+        <button id="selectAllBtn" class="select-mode-btn" style="width:auto; padding:2px 10px; font-size:0.75rem;">Tout sélectionner</button>
+        <button id="cancelBulkBtn" class="select-mode-btn" style="width:auto; padding:2px 10px; font-size:0.75rem;">Annuler</button>
+      </div>
+    </div>
+    <button id="bulkActionBtn" style="background: var(--danger); width: auto; padding: 10px 20px; border-radius: 8px;">Supprimer</button>
+  </div>
 
   <!-- Modal Liste des abonnés -->
   <div id="followersModal" class="modal">
@@ -143,8 +188,14 @@
     </div>
   </div>
 
-  <!-- EmailJS SDK -->
+  <!-- Modal pour afficher les photos en grand -->
+  <div id="profileImageModal" class="profile-image-modal" onclick="closeProfileImageModal()">
+    <img id="modalProfileImage" src="" alt="Image en grand">
+  </div>
+
+  <!-- SDKs Externes -->
   <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     (function(){ emailjs.init("pIgaKR9S7aPVoaiEf"); })();
   </script>
