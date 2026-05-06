@@ -556,13 +556,14 @@ button:active,
   align-items: center;
   justify-content: center;
   font-size: 1.06rem;
-  background: linear-gradient(180deg, #ffb347 0%, #ff9900 100%);
+  /* background: linear-gradient(180deg, #ffb347 0%, #ff9900 100%); */
+  background: white;
   box-shadow: none;
 }
 
 .amazon-search-panel {
-  background: linear-gradient(180deg, #fffefb 0%, #fff4ea 100%);
-  border: 1px solid #ffcfa9;
+  /* background: linear-gradient(180deg, #fffefb 0%, #fff4ea 100%); */
+  /* border: 1px solid #ffcfa9; */
   box-shadow: 0 10px 24px rgba(255, 106, 0, 0.1);
 }
 
@@ -1368,24 +1369,27 @@ textarea:focus {
 .video-page-container {
   max-width: 600px; /* Plus étroit pour style mobile */
   margin: 0 auto;
-  padding: 0;
+  padding: 10px 0 0;
+}
+
+.video-search-bar {
+  padding: 8px 10px 12px;
 }
 
 .video-feed {
   display: grid;
-  justify-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .video-card {
   position: relative;
   background: #000;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
-  margin-bottom: 20px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.2);
   aspect-ratio: 9/16; /* Format portrait */
-  max-height: 85vh;
-  width: min(100%, 420px);
+  width: 100%;
 }
 
 .video-player {
@@ -1548,6 +1552,37 @@ textarea:focus {
   transform: scale(1.08);
 }
 
+.video-save-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.video-save-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  transform: scale(1.08);
+}
+
+.video-save-btn.active {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1b74e4;
+  border-color: #ffffff;
+}
+
 .video-card .video-delete-btn {
   position: absolute;
   top: 10px;
@@ -1568,6 +1603,107 @@ textarea:focus {
 .video-card .video-delete-btn:hover {
   background: rgba(217, 48, 37, 0.9);
   border-color: rgba(217, 48, 37, 1);
+}
+
+/* Mode plein ecran TikTok-like */
+.video-feed.video-feed-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  background: #000;
+  display: block;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  padding: 0;
+}
+
+.video-feed.video-feed-fullscreen .video-card {
+  width: 100vw;
+  height: 100dvh;
+  border-radius: 0;
+  margin: 0;
+  aspect-ratio: auto;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.video-feed.video-feed-fullscreen .video-card .like-btn { bottom: 350px; }
+.video-feed.video-feed-fullscreen .video-card .video-like-count { bottom: 360px; }
+.video-feed.video-feed-fullscreen .video-card .video-comment-toggle-btn { bottom: 302px; }
+.video-feed.video-feed-fullscreen .video-card .video-comment-count { bottom: 312px; }
+.video-feed.video-feed-fullscreen .video-card .whatsapp-btn { bottom: 254px; }
+.video-feed.video-feed-fullscreen .video-card .video-share-btn { bottom: 206px; }
+.video-feed.video-feed-fullscreen .video-card .video-save-btn { bottom: 158px; }
+.video-feed.video-feed-fullscreen .video-card .like-btn,
+.video-feed.video-feed-fullscreen .video-card .video-comment-toggle-btn,
+.video-feed.video-feed-fullscreen .video-card .whatsapp-btn,
+.video-feed.video-feed-fullscreen .video-card .video-share-btn,
+.video-feed.video-feed-fullscreen .video-card .video-save-btn { right: 22px; }
+.video-feed.video-feed-fullscreen .video-card .video-like-count,
+.video-feed.video-feed-fullscreen .video-card .video-comment-count { right: 64px; }
+.video-feed.video-feed-fullscreen .video-card .video-delete-btn {
+  top: 17px;
+  left: 62px;
+}
+
+/* En mode grille: masquer les icones/actions video */
+.video-feed:not(.video-feed-fullscreen) .video-card .like-btn,
+.video-feed:not(.video-feed-fullscreen) .video-card .video-like-count,
+.video-feed:not(.video-feed-fullscreen) .video-card .video-comment-toggle-btn,
+.video-feed:not(.video-feed-fullscreen) .video-card .video-comment-count,
+.video-feed:not(.video-feed-fullscreen) .video-card .whatsapp-btn,
+.video-feed:not(.video-feed-fullscreen) .video-card .video-share-btn,
+.video-feed:not(.video-feed-fullscreen) .video-card .video-save-btn,
+.video-feed:not(.video-feed-fullscreen) .video-card .video-delete-btn {
+  display: none !important;
+}
+
+.video-feed-close-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  z-index: 10030;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.video-feed-close-btn.active {
+  display: inline-flex;
+}
+
+.video-feed-search-btn {
+  position: fixed;
+  top: 14px;
+  right: 22px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  z-index: 10030;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.video-feed-search-btn.active {
+  display: inline-flex;
+}
+
+body.video-fullscreen-open #videoSearchBar {
+  display: none !important;
 }
 
 .video-comments {
@@ -1850,7 +1986,7 @@ textarea:focus {
 
 .stories-wrapper {
   display: flex;
-  gap: 15px;
+  gap: 10px;
   overflow-x: auto;
   padding: 5px 15px;
   scrollbar-width: none; /* Firefox */
@@ -1863,72 +1999,94 @@ textarea:focus {
 }
 
 .story-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 70px;
+  position: relative;
+  width: 110px;
+  min-width: 110px;
+  height: 180px;
+  border-radius: 14px;
+  overflow: hidden;
   cursor: pointer;
   text-decoration: none;
-  color: var(--text);
+  color: #fff;
+  background: #d8dee9;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+}
+
+.story-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.story-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.2) 55%, rgba(0,0,0,0.05) 100%);
 }
 
 .story-ring {
-  width: 68px;
-  height: 68px;
+  position: absolute;
+  left: 10px;
+  bottom: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  padding: 3px;
-  /* Dégradé Instagram/Facebook */
-  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); 
+  padding: 2px;
+  background: linear-gradient(135deg, #1b74e4 0%, #22a2ff 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 5px;
-  transition: transform 0.2s ease;
+  z-index: 2;
 }
 
 .story-item:hover .story-ring {
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 
-.story-img {
+.story-avatar {
   width: 100%;
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid #fff; /* Bordure blanche interne */
+  border: 2px solid #fff;
   background: #fff;
 }
 
 .story-name {
-  font-size: 0.75rem;
-  text-align: center;
-  max-width: 74px;
+  position: absolute;
+  left: 10px;
+  right: 8px;
+  bottom: 10px;
+  z-index: 2;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
-/* Style pour "Créer une story" (User actuel) */
 .story-item.create .story-ring {
-  background: transparent;
-  border: 2px solid #ddd;
-  padding: 2px;
-  position: relative;
+  background: #fff;
+  border: 2px solid #1b74e4;
 }
 
 .story-badge-plus {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  background: var(--primary);
+  right: -4px;
+  bottom: -4px;
+  background: #1b74e4;
   color: white;
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
   border: 2px solid #fff;
 }
 
@@ -2616,6 +2774,79 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+.profile-text-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: #ffffff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.profile-text-link:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.quick-profile-panel {
+  padding: 10px 12px;
+}
+
+.quick-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.quick-profile-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  object-fit: cover;
+  background: #fff;
+}
+
+.quick-profile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.quick-profile-text strong {
+  font-size: 0.95rem;
+}
+
+.quick-profile-text span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.quick-profile-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.quick-publish-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(180deg, var(--primary-2) 0%, var(--primary) 100%);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 0.84rem;
 }
 
 .header-profile-avatar {

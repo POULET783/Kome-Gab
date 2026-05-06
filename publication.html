@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -8,32 +8,17 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body data-page="publication">
-  <header class="topbar amazon-header">
-    <a class="brand-logo" href="home.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
-    <div class="top-actions">
-      <a class="profile-avatar-link" href="profile.html" id="profileAvatarLink">
-        <img id="headerProfileAvatar" class="header-profile-avatar" src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff&size=32" alt="Profil">
-      </a>
-    </div>
-  </header>
-
-  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
-    <a href="index.html"><i class="fas fa-home"></i></a>
-    <a href="videos.html"><i class="fas fa-video"></i></a>
-    <a href="occasion.html"><i class="fas fa-tags"></i></a>
-    <a href="boutique.html"><i class="fas fa-store"></i></a>
-    <a href="publication.html"><i class="fas fa-plus-circle"></i></a>
-    <a href="dashboard.html"><i class="fas fa-user"></i></a>
-  </nav>
-
 
   <main class="page">
     <section class="panel form">
-      <h2>Créer une publication</h2>
+      <div style="display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 15px;">
+        <button class="back-button" onclick="history.back()" style="position: absolute; left: 0;"><i class="fas fa-arrow-left"></i></button>
+        <h2 id="galleryTitle" style="margin: 0;">CrÃ©er une publication</h2>
+      </div>
       
       <div class="tabs-container">
         <button class="tab-btn active" data-target="form-photo">Produit (Photo)</button>
-        <button class="tab-btn" data-target="form-video">Vidéo Courte</button>
+        <button class="tab-btn" data-target="form-video">VidÃ©o Courte</button>
       </div>
 
       <!-- FORMULAIRE PHOTO (EXISTANT) -->
@@ -42,22 +27,22 @@
         <input id="occName" placeholder="Ex: iPhone 12">
 
         <label for="occDescription">Description</label>
-        <textarea id="occDescription" rows="3" placeholder="État, accessoires, etc."></textarea>
+        <textarea id="occDescription" rows="3" placeholder="Ã‰tat, accessoires, etc."></textarea>
 
         <label for="occPrice">Prix (FCFA)</label>
         <input id="occPrice" type="number" min="0" placeholder="100000">
 
         <label for="occImageFiles">Images produit</label>
         <input id="occImageFiles" type="file" accept="image/*" multiple>
-        <p class="small">Sélectionnez plusieurs images depuis vos dossiers (max 8 images, 2 Mo/image).</p>
+        <p class="small">SÃ©lectionnez plusieurs images depuis vos dossiers (max 8 images, 2 Mo/image).</p>
         <div id="occImagePreviewList" class="preview-grid"></div>
 
-        <label for="occCategory">Catégorie</label>
+        <label for="occCategory">CatÃ©gorie</label>
         <select id="occCategory">
-          <option value="Téléphone">Téléphone</option>
+          <option value="TÃ©lÃ©phone">TÃ©lÃ©phone</option>
           <option value="Ordinateur">Ordinateur</option>
           <option value="Voiture">Voiture</option>
-          <option value="Vêtement">Vêtement</option>
+          <option value="VÃªtement">VÃªtement</option>
           <option value="Chaussures">Chaussures</option>
           <option value="Accessoires">Accessoires</option>
           <option value="Montre">Montre</option>
@@ -66,22 +51,22 @@
           <option value="Autre">Autre</option>
         </select>
 
-        <label for="occPhone">Numéro WhatsApp (sans +)</label>
+        <label for="occPhone">NumÃ©ro WhatsApp (sans +)</label>
         <input id="occPhone" placeholder="241XXXXXXXX">
 
         <button id="publishOccasionBtn">Publier l'annonce</button>
       </div>
 
-      <!-- FORMULAIRE VIDÉO (NOUVEAU) -->
+      <!-- FORMULAIRE VIDÃ‰O (NOUVEAU) -->
       <div id="form-video" class="form-section form">
-        <label for="videoFile">Fichier Vidéo (Max 60s)</label>
+        <label for="videoFile">Fichier VidÃ©o (Max 60s)</label>
         <input id="videoFile" type="file" accept="video/*">
         <div id="videoPreviewArea" style="margin-bottom: 10px;"></div>
 
-        <label for="videoCaption">Légende</label>
-        <textarea id="videoCaption" rows="3" placeholder="Décrivez votre vidéo..."></textarea>
+        <label for="videoCaption">LÃ©gende</label>
+        <textarea id="videoCaption" rows="3" placeholder="DÃ©crivez votre vidÃ©o..."></textarea>
         
-        <button id="publishVideoBtn">Publier la vidéo</button>
+        <button id="publishVideoBtn">Publier la vidÃ©o</button>
       </div>
     </section>
   </main>
@@ -91,3 +76,9 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 </body>
 </html>
+
+
+
+
+
+

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -8,16 +8,13 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body data-page="home">
-  <!-- Inclure le panier latéral -->
+  <!-- Inclure le panier latÃ©ral -->
   <div id="cartSidebarContainer"></div>
 
   <header class="topbar amazon-header">
     <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
     <div class="top-actions">
-      <a class="profile-avatar-link" href="profile.html" id="profileAvatarLink">
-        <img id="headerProfileAvatar" class="header-profile-avatar" src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff&size=32" alt="Profil">
-      </a>
-    </div>
+</div>
   </header>
 
   <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
@@ -25,42 +22,69 @@
     <a href="videos.html"><i class="fas fa-video"></i></a>
     <a href="occasion.html"><i class="fas fa-tags"></i></a>
     <a href="boutique.html"><i class="fas fa-store"></i></a>
-    <a href="publication.html"><i class="fas fa-plus-circle"></i></a>
     <a href="dashboard.html"><i class="fas fa-user"></i></a>
   </nav>
 
   <main class="page">
-    <section class="panel amazon-search-panel">
-      <h2>Marketplace Kome-Gab</h2>
-      <div class="filters">
-        <div class="amazon-search-wrap">
-          <select id="categoryFilter" aria-label="Catalogues">
-            <option value="">Catalogues</option>
-            <option value="Téléphone">Téléphone</option>
-            <option value="Ordinateur">Ordinateur</option>
-            <option value="Voiture">Voiture</option>
-            <option value="Vêtement">Vêtement</option>
-            <option value="Chaussures">Chaussures</option>
-            <option value="Accessoires">Accessoires</option>
-            <option value="Montre">Montre</option>
-            <option value="Bijoux">Bijoux</option>
-            <option value="Nourriture">Nourriture</option>
-            <option value="Autre">Autre</option>
-            <option value="Occasion">Occasion</option>
-          </select>
-          <input type="text" id="searchInput" placeholder="Rechercher un produit, une marque, une catégorie">
-          <button id="searchBtn" class="search-icon-btn" type="button" aria-label="Rechercher">&#128269;</button>
+    <section class="panel quick-profile-panel">
+      <a id="quickProfileLink" class="quick-profile" href="login.html">
+        <img
+          id="quickProfileAvatar"
+          class="quick-profile-avatar"
+          src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff&size=96"
+          alt="Profil"
+        >
+        <div class="quick-profile-text">
+          <strong id="quickProfileName">Mon profil</strong>
+          <span id="quickProfileHint">Touchez pour vous connecter</span>
         </div>
+      </a>
+      <div class="quick-profile-actions">
+        <a class="quick-publish-link" href="publication.html" aria-label="Publier">
+          <i class="fas fa-plus-circle"></i>
+          <span>Publier</span>
+        </a>
       </div>
     </section>
 
-     <!-- BARRE DE STORIES -->
+    <!-- BARRE DE STORIES -->
     <section class="panel stories-panel">
-      <div id="storiesContainer" class="stories-wrapper"></div>
+      <div id="storiesContainer" class="stories-wrapper">
+        <div class="story-item create">
+          <img class="story-bg" src="https://ui-avatars.com/api/?name=Moi&background=3b82f6&color=fff&size=320" alt="Créer story">
+          <div class="story-gradient"></div>
+          <div class="story-ring">
+            <img class="story-avatar" src="https://ui-avatars.com/api/?name=Moi&background=3b82f6&color=fff&size=96" alt="Moi">
+            <span class="story-badge-plus">+</span>
+          </div>
+          <span class="story-name">Votre story</span>
+        </div>
+      </div>
     </section>
-
     <section class="panel">
       <h3>Produits disponibles</h3>
+      <div class="amazon-search-panel" style="margin-bottom: 12px;">
+        <div class="filters">
+          <div class="amazon-search-wrap">
+            <select id="categoryFilter" aria-label="Catalogues">
+              <option value="">Catalogues</option>
+              <option value="TÃ©lÃ©phone">TÃ©lÃ©phone</option>
+              <option value="Ordinateur">Ordinateur</option>
+              <option value="Voiture">Voiture</option>
+              <option value="VÃªtement">VÃªtement</option>
+              <option value="Chaussures">Chaussures</option>
+              <option value="Accessoires">Accessoires</option>
+              <option value="Montre">Montre</option>
+              <option value="Bijoux">Bijoux</option>
+              <option value="Nourriture">Nourriture</option>
+              <option value="Autre">Autre</option>
+              <option value="Occasion">Occasion</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="Rechercher un produit, une marque, une catÃ©gorie">
+            <button id="searchBtn" class="search-icon-btn" type="button" aria-label="Rechercher">&#128269;</button>
+          </div>
+        </div>
+      </div>
       <div id="products" class="cards"></div>
       <p id="emptyProducts" class="empty">Aucun produit pour le moment.</p>
     </section>
@@ -70,11 +94,11 @@
   <div id="storyUploadModal" class="modal">
     <div class="modal-content" style="max-width: 350px; text-align: center;">
       <span class="close-modal">&times;</span>
-      <h3>Créer une story</h3>
+      <h3>CrÃ©er une story</h3>
       <input type="file" id="storyFileInput" accept="image/*,video/*" style="display:none;">
       
       <div id="storyPreviewArea" style="margin: 15px 0; min-height: 200px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 8px; overflow: hidden;">
-        <p class="meta" id="storyPlaceholderText">Cliquez pour ajouter une photo ou vidéo</p>
+        <p class="meta" id="storyPlaceholderText">Cliquez pour ajouter une photo ou vidÃ©o</p>
       </div>
 
       <button id="triggerStoryFileBtn" class="secondary" style="margin-bottom: 10px;">Choisir un fichier</button>
@@ -101,3 +125,9 @@
  </script>
 </body>
 </html>
+
+
+
+
+
+

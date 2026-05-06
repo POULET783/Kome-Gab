@@ -140,6 +140,10 @@ function updateAuthLink() {
   const profileAvatarLink = document.getElementById("profileAvatarLink");
   const profileTextLink = document.getElementById("profileTextLink"); // Peut être null
   const headerProfileAvatar = document.getElementById("headerProfileAvatar");
+  const quickProfileLink = document.getElementById("quickProfileLink");
+  const quickProfileAvatar = document.getElementById("quickProfileAvatar");
+  const quickProfileName = document.getElementById("quickProfileName");
+  const quickProfileHint = document.getElementById("quickProfileHint");
   
   const logged = currentUser();
   
@@ -162,32 +166,47 @@ function updateAuthLink() {
     }
   }
   
-  // Gérer l'affichage de la photo de profil dans le header
-  if (profileAvatarLink && headerProfileAvatar) {
-    if (logged) {
-      // Récupérer la photo de profil ou le logo de la boutique
-      let profileImage = logged.photo_profil;
-      
-      // Utiliser l'image trouvée ou un avatar par défaut si vide/placeholder
-      if (profileImage && !profileImage.includes("placehold.co")) {
-        headerProfileAvatar.src = profileImage;
-      } else {
-        headerProfileAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(logged.nom || "User")}&background=3b82f6&color=fff&size=64`;
-      }
+  if (logged) {
+    let profileImage = logged.photo_profil;
+    const resolvedAvatar = (profileImage && !profileImage.includes("placehold.co"))
+      ? profileImage
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(logged.nom || "User")}&background=3b82f6&color=fff&size=64`;
 
-        profileAvatarLink.style.display = "inline-flex";
-      if (profileTextLink) profileTextLink.style.display = "none";
-        
-      // Ajouter l'événement pour rediriger vers le profil
-      headerProfileAvatar.onclick = (e) => {
-          e.preventDefault();
-          // Rediriger vers le profil au lieu d'afficher l'image en grand
-          window.location.href = "profile.html";
-      };
-      } else {
-        profileAvatarLink.style.display = "none";
-      if (profileTextLink) profileTextLink.style.display = "inline-block";
+    if (profileAvatarLink) {
+      profileAvatarLink.href = "profile.html";
+      profileAvatarLink.style.display = "inline-flex";
     }
+    if (headerProfileAvatar) {
+      headerProfileAvatar.src = resolvedAvatar;
+      headerProfileAvatar.onclick = null;
+    }
+    if (profileTextLink) {
+      profileTextLink.textContent = logged.nom ? String(logged.nom) : "Mon profil";
+      profileTextLink.href = "profile.html";
+      profileTextLink.style.display = "inline-flex";
+    }
+    if (quickProfileLink) quickProfileLink.href = "profile.html";
+    if (quickProfileAvatar) quickProfileAvatar.src = resolvedAvatar;
+    if (quickProfileName) quickProfileName.textContent = logged.nom ? String(logged.nom) : "Mon profil";
+    if (quickProfileHint) quickProfileHint.textContent = "Voir mon profil";
+  } else {
+    if (profileAvatarLink) {
+      profileAvatarLink.href = "login.html";
+      profileAvatarLink.style.display = "inline-flex";
+    }
+    if (headerProfileAvatar) {
+      headerProfileAvatar.src = "https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff&size=64";
+      headerProfileAvatar.onclick = null;
+    }
+    if (profileTextLink) {
+      profileTextLink.textContent = "Se connecter";
+      profileTextLink.href = "login.html";
+      profileTextLink.style.display = "inline-flex";
+    }
+    if (quickProfileLink) quickProfileLink.href = "login.html";
+    if (quickProfileAvatar) quickProfileAvatar.src = "https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff&size=96";
+    if (quickProfileName) quickProfileName.textContent = "Mon profil";
+    if (quickProfileHint) quickProfileHint.textContent = "Touchez pour vous connecter";
   }
 }
 
@@ -838,6 +857,24 @@ async function toggleLike(id, type) {
   }
 }
 
+async function toggleSavedVideo(videoId) {
+  const user = currentUser();
+  if (!user) {
+    alert("Connectez-vous pour enregistrer une vidéo.");
+    return false;
+  }
+  if (!videoId) return false;
+
+  const current = Array.isArray(user.savedVideoIds) ? [...user.savedVideoIds] : [];
+  const exists = current.includes(videoId);
+  const next = exists ? current.filter((id) => id !== videoId) : [...current, videoId];
+
+  await updateUserInFirestore(user.id, { savedVideoIds: next });
+  user.savedVideoIds = next;
+  write(STORAGE_KEYS.loggedUser, user);
+  return !exists;
+}
+
 /* ===================================
    GESTION DES STORIES
    =================================== */
@@ -874,13 +911,14 @@ async function setupStories() {
   }
 
   // --- GENERATION HTML ---
+  const defaultAvatar = user?.photo_profil || "https://ui-avatars.com/api/?name=Me&background=eee&color=333";
   let myStoryHtml = '';
-  // Si l'utilisateur a des stories, préparer le cercle "Ma Story"
+  // Si l'utilisateur a des stories, préparer la case "Ma Story"
   if (myStories.length > 0) {
     const latestStory = myStories[0];
     
-    // Utiliser la photo de la dernière story. Si c'est une vidéo, on tente de générer une miniature (Cloudinary .jpg)
-    let storyThumbnail = user?.photo_profil || 'https://ui-avatars.com/api/?name=Me&background=eee&color=333';
+    // Utiliser la dernière story comme image de fond de la case
+    let storyThumbnail = defaultAvatar;
     
     if (latestStory.mediaType === 'image') {
       storyThumbnail = latestStory.mediaUrl;
@@ -889,13 +927,15 @@ async function setupStories() {
       storyThumbnail = latestStory.mediaUrl.replace(/\.[^/.]+$/, ".jpg");
     }
 
-    // Optimisation de la miniature story (100px suffisent pour le cercle)
-    storyThumbnail = optimizeCloudinaryUrl(storyThumbnail, 150);
+    storyThumbnail = optimizeCloudinaryUrl(storyThumbnail, 320);
+    const myAvatar = optimizeCloudinaryUrl(defaultAvatar, 96);
 
     myStoryHtml = `
       <div class="story-item" id="myStoryBtn">
+        <img src="${storyThumbnail}" class="story-bg" alt="Ma Story">
+        <div class="story-gradient"></div>
         <div class="story-ring">
-          <img src="${storyThumbnail}" class="story-img" alt="Ma Story">
+          <img src="${myAvatar}" class="story-avatar" alt="Moi">
         </div>
         <span class="story-name">Ma Story</span>
       </div>
@@ -903,10 +943,14 @@ async function setupStories() {
   }
 
   // Toujours afficher le bouton "Créer story"
+  const createBg = optimizeCloudinaryUrl(defaultAvatar, 320);
+  const createAvatar = optimizeCloudinaryUrl(defaultAvatar, 96);
   const createStoryHtml = `
     <div class="story-item create" id="addStoryBtn">
+      <img src="${createBg}" class="story-bg" alt="Créer story">
+      <div class="story-gradient"></div>
       <div class="story-ring">
-        <img src="${user?.photo_profil || 'https://ui-avatars.com/api/?name=Me&background=eee&color=333'}" class="story-img" alt="Moi">
+        <img src="${createAvatar}" class="story-avatar" alt="Moi">
         <div class="story-badge-plus">+</div>
       </div>
       <span class="story-name">Créer story</span>
@@ -922,7 +966,7 @@ async function setupStories() {
     group.stories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const latest = group.stories[0];
 
-    // Par défaut l'avatar, sinon l'image de la dernière story
+    // Par défaut avatar; on remplace le fond par la dernière story
     let img = group.userAvatar || "https://placehold.co/100x100";
     
     if (latest) {
@@ -934,13 +978,16 @@ async function setupStories() {
       }
     }
     
-    // Optimisation de l'avatar/miniature story
-    img = optimizeCloudinaryUrl(img, 150);
+    // Fond case + avatar rond
+    const bgImg = optimizeCloudinaryUrl(img, 320);
+    const avatarImg = optimizeCloudinaryUrl(group.userAvatar || img, 96);
 
     otherStoriesHtml += `
       <div class="story-item view-story" data-userid="${userId}">
+        <img src="${bgImg}" class="story-bg" alt="${group.userName}">
+        <div class="story-gradient"></div>
         <div class="story-ring">
-          <img src="${img}" class="story-img" alt="${group.userName}">
+          <img src="${avatarImg}" class="story-avatar" alt="${group.userName}">
         </div>
         <span class="story-name">${group.userName}</span>
       </div>
@@ -948,7 +995,7 @@ async function setupStories() {
   });
   
   // Assembler le tout: Créer, Ma Story (si elle existe), puis les autres
-  container.innerHTML = `<div class="stories-wrapper">${createStoryHtml}${myStoryHtml}${otherStoriesHtml}</div>`;
+  container.innerHTML = `${createStoryHtml}${myStoryHtml}${otherStoriesHtml}`;
 
   // 1. Clic sur "Créer story"
   const addStoryBtn = document.getElementById("addStoryBtn");
@@ -2878,7 +2925,7 @@ function setupProfilePage() {
   let isActionInProgress = false;
   
   // Fonction pour charger le contenu de la grille
-  function loadTabContent(tabName) {
+  async function loadTabContent(tabName) {
     currentTab = tabName;
     isSelectionMode = false; // Reset mode selection
     updateSelectionUI();
@@ -2933,6 +2980,57 @@ function setupProfilePage() {
         }).join("");
       } else {
         emptyMsg.textContent = "Vous n'avez publié aucun produit.";
+      }
+
+    } else if (tabName === "my-videos") {
+      actionLabel = "Supprimer";
+      actionType = "delete-video";
+      bulkBtn.textContent = "Supprimer la sélection";
+
+      const allVideos = await getShortVideos();
+      const myVideos = allVideos.filter((v) => user && v.userId === user.id);
+
+      if (myVideos.length > 0) {
+        isEmpty = false;
+        itemsHTML = myVideos.map((v) => `
+            <div class="profile-grid-item" data-id="${v.id}">
+              <a href="videos.html" class="grid-link">
+                <video src="${v.videoUrl}" muted playsinline preload="metadata" style="width:100%; height:100%; object-fit:cover; background:#000;"></video>
+              </a>
+              <div class="grid-badge">Vidéo</div>
+              <div class="grid-select-overlay">
+                <input type="checkbox" class="grid-checkbox" value="${v.id}">
+              </div>
+            </div>
+          `).join("");
+      } else {
+        emptyMsg.textContent = "Vous n'avez publié aucune vidéo.";
+      }
+
+    } else if (tabName === "saved-videos") {
+      actionLabel = "Retirer des enregistrées";
+      actionType = "unsave-video";
+      bulkBtn.textContent = "Retirer la sélection";
+
+      const savedIds = user.savedVideoIds || [];
+      const allVideos = await getShortVideos();
+      const savedVideos = allVideos.filter((v) => savedIds.includes(v.id));
+
+      if (savedVideos.length > 0) {
+        isEmpty = false;
+        itemsHTML = savedVideos.map((v) => `
+            <div class="profile-grid-item" data-id="${v.id}">
+              <a href="videos.html" class="grid-link">
+                <video src="${v.videoUrl}" muted playsinline preload="metadata" style="width:100%; height:100%; object-fit:cover; background:#000;"></video>
+              </a>
+              <div class="grid-badge">Enregistrée</div>
+              <div class="grid-select-overlay">
+                <input type="checkbox" class="grid-checkbox" value="${v.id}">
+              </div>
+            </div>
+          `).join("");
+      } else {
+        emptyMsg.textContent = "Aucune vidéo enregistrée.";
       }
 
     } else if (tabName === "favorites") {
@@ -3061,6 +3159,8 @@ function setupProfilePage() {
     let actionLabel = "Supprimer", actionType = "delete";
     if (currentTab === "favorites") { actionLabel = "Retirer"; actionType = "unlike"; }
     else if (currentTab === "shops") { actionLabel = "Ne plus suivre"; actionType = "unfollow"; }
+    else if (currentTab === "my-videos") { actionLabel = "Supprimer"; actionType = "delete-video"; }
+    else if (currentTab === "saved-videos") { actionLabel = "Retirer"; actionType = "unsave-video"; }
 
     globalOptionsMenu.innerHTML = `
       <button class="action-item" data-action="select">Sélectionner</button>
@@ -3128,6 +3228,8 @@ function setupProfilePage() {
     if (currentTab === "products") action = "delete";
     else if (currentTab === "favorites") action = "unlike";
     else if (currentTab === "shops") action = "unfollow";
+    else if (currentTab === "my-videos") action = "delete-video";
+    else if (currentTab === "saved-videos") action = "unsave-video";
 
     await executeAction(action, checked);
     isSelectionMode = false;
@@ -3192,10 +3294,32 @@ function setupProfilePage() {
         user.favoriteShops = serverUserAfter?.favoriteShops || [];
         write(STORAGE_KEYS.loggedUser, user);
         await syncData(); // Important pour shops
+      } else if (action === "delete-video") {
+        if (targets.length === 0) { showAlert("Veuillez sélectionner au moins une vidéo."); return; }
+        if (!confirm(`Voulez-vous vraiment supprimer ${targets.length} vidéo(s) ?`)) return;
+
+        for (const id of targets) {
+          await deleteShortVideo(id, user.id);
+        }
+
+        const savedIds = Array.isArray(user.savedVideoIds) ? user.savedVideoIds : [];
+        const nextSaved = savedIds.filter((id) => !targets.includes(id));
+        if (nextSaved.length !== savedIds.length) {
+          await updateUserInFirestore(user.id, { savedVideoIds: nextSaved });
+          user.savedVideoIds = nextSaved;
+          write(STORAGE_KEYS.loggedUser, user);
+        }
+      } else if (action === "unsave-video") {
+        if (targets.length === 0) { showAlert("Veuillez sélectionner au moins une vidéo."); return; }
+        const savedIds = Array.isArray(user.savedVideoIds) ? user.savedVideoIds : [];
+        const nextSaved = savedIds.filter((id) => !targets.includes(id));
+        await updateUserInFirestore(user.id, { savedVideoIds: nextSaved });
+        user.savedVideoIds = nextSaved;
+        write(STORAGE_KEYS.loggedUser, user);
       }
       
       // Rafraichir la grille
-      loadTabContent(currentTab);
+      await loadTabContent(currentTab);
       
     } catch (e) {
       console.error(e);
@@ -3647,6 +3771,9 @@ async function setupVideosPage() {
 
   const container = document.getElementById("videoFeed");
   const empty = document.getElementById("emptyVideos");
+  const searchToggleBtn = document.getElementById("videoSearchToggle");
+  const searchBar = document.getElementById("videoSearchBar");
+  const searchInput = document.getElementById("videoSearchInput");
   const user = currentUser();
   const openPanels = new Set(
     Array.from(container?.querySelectorAll(".video-comments-panel.active") || [])
@@ -3665,17 +3792,30 @@ async function setupVideosPage() {
   
   try {
     const videos = await getShortVideos();
+    const query = (searchInput?.value || "").trim().toLowerCase();
+    const filteredVideos = query
+      ? videos.filter((v) => {
+          const username = String(v.userName || "").toLowerCase();
+          const caption = String(v.caption || "").toLowerCase();
+          return username.includes(query) || caption.includes(query);
+        })
+      : videos;
     
-    if (videos.length === 0) {
+    if (filteredVideos.length === 0) {
       container.innerHTML = "";
       empty.classList.remove("hidden");
+      empty.textContent = query
+        ? "Aucune vidéo ne correspond à votre recherche."
+        : "Aucune vidéo pour le moment.";
       return;
     }
     empty.classList.add("hidden");
 
-    container.innerHTML = videos.map(v => {
+    container.innerHTML = filteredVideos.map(v => {
       const likes = v.likes || [];
       const isLiked = user && likes.includes(user.id);
+      const savedIds = Array.isArray(user?.savedVideoIds) ? user.savedVideoIds : [];
+      const isSaved = user ? savedIds.includes(v.id) : false;
       const likeCount = likes.length;
       const comments = Array.isArray(v.comments) ? v.comments : [];
       const commentCount = comments.length;
@@ -3756,7 +3896,7 @@ async function setupVideosPage() {
         : `<p class="video-comment-empty">Aucun commentaire.</p>`;
 
       return `
-        <div class="video-card">
+        <div class="video-card" data-video-id="${v.id}">
           ${canDelete ? `<button class="video-delete-btn" data-id="${v.id}" title="Supprimer ma vidéo"><i class="fas fa-trash"></i></button>` : ""}
           <video class="video-player" src="${v.videoUrl}" controls loop playsinline></video>
           
@@ -3774,6 +3914,9 @@ async function setupVideosPage() {
 
           <button class="video-share-btn" data-id="${v.id}" data-caption="${escapeHtml(v.caption || "")}" title="Partager">
             <i class="fa-solid fa-share-nodes"></i>
+          </button>
+          <button class="video-save-btn ${isSaved ? 'active' : ''}" data-id="${v.id}" title="Enregistrer">
+            <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-bookmark"></i>
           </button>
 
 
@@ -3825,9 +3968,26 @@ async function setupVideosPage() {
 
     // Double-clic style TikTok : active le like si pas déjà actif
     container.querySelectorAll(".video-card").forEach((card) => {
+      card.addEventListener("click", (e) => {
+        if (container.classList.contains("video-feed-fullscreen")) return;
+        if (e.target.closest(".video-comments-panel, .video-comment-toggle-btn, .video-share-btn, .video-save-btn, .whatsapp-btn, .like-btn, .video-delete-btn, .video-comment-input, .video-comment-send, .video-comment-reply-btn, .video-comment-delete-btn, .video-comment-like-btn, .video-comments-close-btn, .video-replies-toggle-btn")) {
+          return;
+        }
+
+        const cards = Array.from(container.querySelectorAll(".video-card"));
+        const idx = cards.indexOf(card);
+        container.classList.add("video-feed-fullscreen");
+        document.body.classList.add("cart-open", "video-fullscreen-open");
+        closeFeedBtn.classList.add("active");
+        searchFeedBtn.classList.add("active");
+
+        const top = idx * window.innerHeight;
+        container.scrollTo({ top, behavior: "auto" });
+      });
+
       card.addEventListener("dblclick", (e) => {
         if (!user) return;
-        if (e.target.closest(".video-comments-panel, .video-comment-toggle-btn, .video-share-btn, .whatsapp-btn, .like-btn, .video-delete-btn, .video-comment-input, .video-comment-send, .video-comment-reply-btn, .video-comment-delete-btn, .video-comment-like-btn, .video-comments-close-btn, .video-replies-toggle-btn")) {
+        if (e.target.closest(".video-comments-panel, .video-comment-toggle-btn, .video-share-btn, .video-save-btn, .whatsapp-btn, .like-btn, .video-delete-btn, .video-comment-input, .video-comment-send, .video-comment-reply-btn, .video-comment-delete-btn, .video-comment-like-btn, .video-comments-close-btn, .video-replies-toggle-btn")) {
           return;
         }
 
@@ -4010,6 +4170,34 @@ async function setupVideosPage() {
       });
     });
 
+    container.querySelectorAll(".video-save-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) {
+          alert("Connectez-vous pour enregistrer une vidéo.");
+          return;
+        }
+        const videoId = btn.getAttribute("data-id");
+        if (!videoId) return;
+
+        btn.disabled = true;
+        try {
+          const saved = await toggleSavedVideo(videoId);
+          btn.classList.toggle("active", saved);
+          const icon = btn.querySelector("i");
+          if (icon) {
+            icon.className = saved ? "fa-solid fa-bookmark" : "fa-regular fa-bookmark";
+          }
+        } catch (error) {
+          console.error("Erreur enregistrement vidéo:", error);
+          alert("Impossible d'enregistrer cette vidéo.");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
     container.querySelectorAll(".video-comments-close-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -4087,22 +4275,169 @@ async function setupVideosPage() {
       });
     });
 
-    // --- GESTION AUTOPLAY AU DÉFILEMENT ---
+    // --- GESTION AUTOPLAY AU DÉFILEMENT (style TikTok) ---
+    const allVideoEls = Array.from(container.querySelectorAll("video"));
+    const visibilityMap = new Map();
+    let autoplayRaf = null;
+    let currentAutoplayIndex = 0;
+    let lastScrollTop = container.scrollTop || 0;
+
+    const playVideoAtIndex = (idx) => {
+      if (idx < 0 || idx >= allVideoEls.length) return;
+      const target = allVideoEls[idx];
+      currentAutoplayIndex = idx;
+      allVideoEls.forEach((video, i) => {
+        if (i !== idx && !video.paused) video.pause();
+      });
+      if (target.paused) {
+        target.play().catch(e => console.log("Autoplay bloqué (interaction requise):", e));
+      }
+    };
+
+    const playInOrderedSequence = () => {
+      if (!allVideoEls.length) return;
+
+      const currentRatio = visibilityMap.get(allVideoEls[currentAutoplayIndex]) || 0;
+      if (currentRatio >= 0.35) {
+        // Tant que la vidéo courante est encore bien visible, on la garde.
+        playVideoAtIndex(currentAutoplayIndex);
+        return;
+      }
+
+      const goingDown = (container.scrollTop || 0) >= lastScrollTop;
+      const direction = goingDown ? 1 : -1;
+      lastScrollTop = container.scrollTop || 0;
+
+      // Avance/recul dans l'ordre des cartes (gauche->droite puis ligne suivante).
+      let nextIdx = currentAutoplayIndex + direction;
+      while (nextIdx >= 0 && nextIdx < allVideoEls.length) {
+        const ratio = visibilityMap.get(allVideoEls[nextIdx]) || 0;
+        if (ratio >= 0.2) {
+          playVideoAtIndex(nextIdx);
+          return;
+        }
+        nextIdx += direction;
+      }
+
+      // Fallback: première vidéo visible dans le sens du scroll.
+      const scan = goingDown
+        ? [...allVideoEls.keys()]
+        : [...allVideoEls.keys()].reverse();
+      for (const idx of scan) {
+        const ratio = visibilityMap.get(allVideoEls[idx]) || 0;
+        if (ratio >= 0.2) {
+          playVideoAtIndex(idx);
+          return;
+        }
+      }
+    };
+
+    const scheduleAutoplayCheck = () => {
+      if (autoplayRaf) cancelAnimationFrame(autoplayRaf);
+      autoplayRaf = requestAnimationFrame(playInOrderedSequence);
+    };
+
     const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        const video = entry.target;
-        if (entry.isIntersecting) {
-          video.play().catch(e => console.log("Autoplay bloqué (interaction requise):", e));
-        } else {
-          video.pause();
+      entries.forEach((entry) => {
+        visibilityMap.set(entry.target, entry.intersectionRatio || 0);
+      });
+      scheduleAutoplayCheck();
+    }, { threshold: [0, 0.1, 0.25, 0.4, 0.6, 0.8, 1] });
+
+    allVideoEls.forEach((video) => {
+      video.muted = true; // facilite l'autoplay mobile
+      observer.observe(video);
+      video.addEventListener("play", () => {
+        allVideoEls.forEach((other) => {
+          if (other !== video && !other.paused) {
+            other.pause();
+          }
+        });
+      });
+    });
+
+    // Démarrer la première vidéo immédiatement
+    const firstVideo = allVideoEls[0];
+    if (firstVideo) {
+      allVideoEls.forEach((video, idx) => {
+        if (idx !== 0) video.pause();
+      });
+      firstVideo.play().catch(() => {});
+    }
+
+    container.addEventListener("scroll", scheduleAutoplayCheck, { passive: true });
+    window.addEventListener("resize", scheduleAutoplayCheck, { passive: true });
+
+    const closeFeedBtn = document.getElementById("videoFeedCloseBtn") || (() => {
+      const btn = document.createElement("button");
+      btn.id = "videoFeedCloseBtn";
+      btn.className = "video-feed-close-btn";
+      btn.type = "button";
+      btn.innerHTML = '<i class="fas fa-arrow-left"></i>';
+      btn.setAttribute("aria-label", "Fermer le plein écran");
+      document.body.appendChild(btn);
+      return btn;
+    })();
+
+    const searchFeedBtn = document.getElementById("videoFeedSearchBtn") || (() => {
+      const btn = document.createElement("button");
+      btn.id = "videoFeedSearchBtn";
+      btn.className = "video-feed-search-btn";
+      btn.type = "button";
+      btn.innerHTML = '<i class="fas fa-search"></i>';
+      btn.setAttribute("aria-label", "Rechercher une vidéo");
+      document.body.appendChild(btn);
+      return btn;
+    })();
+
+    const exitFullscreenFeed = () => {
+      container.classList.remove("video-feed-fullscreen");
+      closeFeedBtn.classList.remove("active");
+      searchFeedBtn.classList.remove("active");
+      document.body.classList.remove("cart-open", "video-fullscreen-open");
+      if (searchBar) searchBar.classList.add("hidden");
+    };
+
+    closeFeedBtn.onclick = exitFullscreenFeed;
+    searchFeedBtn.onclick = () => {
+      // Style TikTok: quitter le plein écran et revenir à la recherche de la grille.
+      exitFullscreenFeed();
+      if (!searchBar) return;
+      searchBar.classList.remove("hidden");
+      if (searchInput) searchInput.focus();
+    };
+    if (!closeFeedBtn.dataset.escBound) {
+      document.addEventListener("keydown", (evt) => {
+        if (evt.key === "Escape" && container.classList.contains("video-feed-fullscreen")) {
+          exitFullscreenFeed();
         }
       });
-    }, { threshold: 0.6 }); // Se déclenche quand 60% de la vidéo est visible
-
-    container.querySelectorAll("video").forEach(video => observer.observe(video));
+      closeFeedBtn.dataset.escBound = "1";
+    }
 
   } catch (e) {
     console.error("Erreur chargement vidéos", e);
+  }
+
+  if (searchToggleBtn && searchBar && !searchToggleBtn.dataset.bound) {
+    searchToggleBtn.addEventListener("click", () => {
+      const willOpen = searchBar.classList.contains("hidden");
+      searchBar.classList.toggle("hidden");
+      if (willOpen && searchInput) {
+        searchInput.focus();
+      } else if (searchInput && searchInput.value.trim()) {
+        searchInput.value = "";
+        setupVideosPage();
+      }
+    });
+    searchToggleBtn.dataset.bound = "1";
+  }
+
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.addEventListener("input", () => {
+      setupVideosPage();
+    });
+    searchInput.dataset.bound = "1";
   }
 }
 
@@ -4273,6 +4608,14 @@ async function setupShopDetailsPage() {
         });
       }
     };
+  }
+
+  // Bouton Dashboard boutique: visible uniquement pour le propriétaire
+  const dashboardBtn = document.getElementById("shopDashboardBtn");
+  if (dashboardBtn) {
+    const isOwner = !!(user && shop.vendeur_id && user.id === shop.vendeur_id);
+    dashboardBtn.style.display = isOwner ? "flex" : "none";
+    dashboardBtn.href = "dashboard.html";
   }
 
   // 2. Affichage des produits

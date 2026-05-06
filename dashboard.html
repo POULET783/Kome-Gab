@@ -8,29 +8,13 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body data-page="dashboard">
-  <header class="topbar amazon-header">
-    <a class="brand-logo" href="index.html"><img class="site-logo" src="images/logo.png" alt="Kome-Gab"></a>
-    <div class="top-actions">
-      <a class="profile-avatar-link" href="profile.html" id="profileAvatarLink">
-        <img id="headerProfileAvatar" class="header-profile-avatar" src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff&size=32" alt="Profil">
-      </a>
-    </div>
-  </header>
-
-  <nav id="mobileMenu" class="mobile-menu" aria-hidden="true">
-    <a href="index.html"><i class="fas fa-home"></i></a>
-    <a href="videos.html"><i class="fas fa-video"></i></a>
-    <a href="occasion.html"><i class="fas fa-tags"></i></a>
-    <a href="boutique.html"><i class="fas fa-store"></i></a>
-    <a href="publication.html"><i class="fas fa-plus-circle"></i></a>
-    <a href="dashboard.html"><i class="fas fa-user"></i></a>
-  </nav>
 
   <main class="page">
-
-    <!-- Section Boutique (pour les vendeurs) -->
     <section class="panel" id="sellerShopSection" style="display: none;">
-      <h2>Ma boutique</h2>
+      <div style="display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 15px;">
+        <button class="back-button" onclick="history.back()" style="position: absolute; left: 0;"><i class="fas fa-arrow-left"></i></button>
+        <h2 id="galleryTitle" style="margin: 0;">Ma boutique</h2>
+      </div>
       
       <div class="profile-avatar-wrap">
         <div class="profile-image-container">
@@ -203,3 +187,9 @@
   <script type="module" src="js/script.js"></script>
 </body>
 </html>
+
+
+
+
+
+
